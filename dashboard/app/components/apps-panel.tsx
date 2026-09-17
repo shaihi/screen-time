@@ -1,3 +1,4 @@
+import { categoryLabels, categoryOf } from "@/lib/categories";
 import { formatShortDuration } from "@/lib/format";
 import type { RangeKey } from "@/lib/range";
 import type { DashboardSummary } from "@/lib/types";
@@ -24,16 +25,22 @@ export function AppsPanel({ summary, range }: { summary: DashboardSummary | null
     <>
       <div className="panel-heading"><div><p className="eyebrow">APPS</p><h2>Where time went</h2></div></div>
       <div className="app-list">
-        {summary?.apps.length ? summary.apps.map((app, index) => (
+        {summary?.apps.length ? summary.apps.map((app, index) => {
+          const category = categoryOf(app.name);
+          return (
           <div className="app-row" key={app.name}>
             <span className="app-rank">{String(index + 1).padStart(2, "0")}</span>
-            <div className="app-name"><strong>{app.name}</strong><span><i style={{ width: `${app.percent}%` }} /></span></div>
+            <div className="app-name">
+              <strong>{app.name}<em>{categoryLabels[category]}</em></strong>
+              <span><i className={`cat-${category}`} style={{ width: `${app.percent}%` }} /></span>
+            </div>
             <time>{formatShortDuration(app.seconds)}</time>
             <VisibilityForm action="hide" appName={app.name} range={range}>
               <button className="hide-app" type="submit" title={`Hide ${app.name} from this list`} aria-label={`Hide ${app.name} from this list`}>×</button>
             </VisibilityForm>
           </div>
-        )) : <p className="empty">Usage will appear after the first upload.</p>}
+          );
+        }) : <p className="empty">Usage will appear after the first upload.</p>}
       </div>
       {summary?.hiddenApps.length ? (
         <details className="hidden-apps">

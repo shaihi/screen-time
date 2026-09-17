@@ -5,7 +5,7 @@ import { MetricsPanel } from "@/app/components/metrics-panel";
 import { OverlapsPanel } from "@/app/components/overlaps-panel";
 import { RangeShell } from "@/app/components/range-shell";
 import { SessionsPanel } from "@/app/components/sessions-panel";
-import { Timeline } from "@/app/components/timeline";
+import { Timeline, TimelineLegend } from "@/app/components/timeline";
 import { formatDuration, formatLastSeen } from "@/lib/format";
 import { parseRange, rangeLabels } from "@/lib/range";
 import { getSummary } from "@/lib/summary";
@@ -36,7 +36,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
         <>
           <div className="panel-heading">
             <div><p className="eyebrow">ACTIVITY</p><h2>{range === "day" ? "Daily rhythm" : "Day by day"}</h2></div>
-            <div className="legend"><span className="key active" /> Active <span className="key media" /> Media <span className="key idle" /> Idle</div>
+            {summary ? <TimelineLegend points={summary.timeline} /> : null}
           </div>
           {summary
             ? <Timeline points={summary.timeline} label={range === "day" ? "Usage by hour" : "Usage by day"} />

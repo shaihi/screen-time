@@ -1,8 +1,9 @@
 import { database, ensureSchema } from "@/lib/db";
-import { dayLabel, daysBetween, rangeStartSql, type RangeKey } from "@/lib/range";
+import { rangeStartSql, type RangeKey } from "@/lib/range";
 import { buildOverlaps, buildSessions, type MinuteUsage } from "@/lib/sessions";
 import { systemAppNames } from "@/lib/system-apps";
-import type { DashboardSummary, TimelinePoint } from "@/lib/types";
+import { buildTimelinePoints, type TimelineRow } from "@/lib/timeline";
+import type { DashboardSummary } from "@/lib/types";
 
 // Caps how much detail the page renders for long ranges.
 const MAX_SESSIONS = 300;
@@ -29,11 +30,13 @@ async function rows<T>(query: PromiseLike<Array<Record<string, unknown>>>): Prom
 
 const systemNamesParam = () => systemAppNames.map((name) => name.toLowerCase());
 
+// True for rows without a listed app; `names` is the parameter holding the system names.
+const hiddenAppCondition = (names: string) => `(app_name IS NULL
+  OR lower(app_name) = ANY(${names}::text[])
+  OR EXISTS (SELECT 1 FROM excluded_apps excluded WHERE excluded.app_name = activity_segments.app_name))`;
+
 // Rows that should appear as named apps. Queries using it take [deviceId, rangeStart, systemNames].
-const visibleAppFilter = `device_id = $1 AND started_at >= $2::timestamptz
-  AND app_name IS NOT NULL
-  AND NOT (lower(app_name) = ANY($3::text[]))
-  AND NOT EXISTS (SELECT 1 FROM excluded_apps excluded WHERE excluded.app_name = activity_segments.app_name)`;
+const visibleAppFilter = `device_id = $1 AND started_at >= $2::timestamptz AND NOT ${hiddenAppCondition("$3")}`;
 
 const toMinuteUsage = (row: MinuteRow): MinuteUsage => ({
   startedAt: new Date(Number(row.epoch) * 1000).toISOString(),
@@ -70,15 +73,17 @@ export async function getSummary(range: RangeKey): Promise<DashboardSummary | nu
   const appParams = [deviceId, bounds.start_at, systemNamesParam()];
 
   const [timelineRows, apps, foregroundRows, backgroundRows, hiddenApps] = await Promise.all([
-    rows<{ bucket: string; state: string; seconds: number }>(sql.query(
+    rows<TimelineRow>(sql.query(
       `SELECT ${range === "day"
         ? "EXTRACT(HOUR FROM started_at AT TIME ZONE $1)::int::text"
         : "(started_at AT TIME ZONE $1)::date::text"} AS bucket,
-        state, SUM(duration_seconds)::int AS seconds
+        state,
+        CASE WHEN ${hiddenAppCondition("$4")} THEN NULL ELSE app_name END AS app,
+        SUM(duration_seconds)::int AS seconds
       FROM activity_segments
-      WHERE device_id = $2 AND started_at >= $3::timestamptz
-      GROUP BY 1, 2`,
-      [timeZone, deviceId, bounds.start_at],
+      WHERE device_id = $2 AND started_at >= $3::timestamptz AND state IN ('active', 'media', 'idle')
+      GROUP BY 1, 2, 3`,
+      [timeZone, deviceId, bounds.start_at, systemNamesParam()],
     )),
     rows<{ name: string; seconds: number }>(sql.query(
       `SELECT app_name AS name, SUM(duration_seconds)::int AS seconds
@@ -115,7 +120,7 @@ export async function getSummary(range: RangeKey): Promise<DashboardSummary | nu
     mediaSeconds: Number(totals[0].media_seconds),
     idleSeconds: Number(totals[0].idle_seconds),
     lockedSeconds: Number(totals[0].locked_seconds),
-    timeline: buildTimeline(range, bounds, timelineRows),
+    timeline: buildTimelinePoints(range, { startDay: bounds.start_day, today: bounds.today }, timelineRows),
     apps: apps.map((app) => ({ ...app, seconds: Number(app.seconds), percent: used ? Number(app.seconds) / used * 100 : 0 })),
     hiddenApps: hiddenApps.map((app) => app.app_name),
     sessions: buildSessions(foreground).slice(0, MAX_SESSIONS),
@@ -123,24 +128,3 @@ export async function getSummary(range: RangeKey): Promise<DashboardSummary | nu
   };
 }
 
-function buildTimeline(
-  range: RangeKey,
-  bounds: Bounds,
-  rows: Array<{ bucket: string; state: string; seconds: number }>,
-): TimelinePoint[] {
-  const points: TimelinePoint[] = range === "day"
-    ? Array.from({ length: 24 }, (_, hour) => {
-      const label = String(hour).padStart(2, "0");
-      return { key: String(hour), label: hour % 3 === 0 ? label : "", title: `${label}:00`, active: 0, media: 0, idle: 0 };
-    })
-    : daysBetween(bounds.start_day, bounds.today).map((day) => ({
-      key: day, label: dayLabel(day, range), title: day, active: 0, media: 0, idle: 0,
-    }));
-  const byKey = new Map(points.map((point, index) => [point.key, index]));
-  return rows.reduce((result, row) => {
-    const index = byKey.get(row.bucket);
-    if (index === undefined || (row.state !== "active" && row.state !== "media" && row.state !== "idle")) return result;
-    const state = row.state;
-    return result.map((point, i) => (i === index ? { ...point, [state]: point[state] + Number(row.seconds) } : point));
-  }, points);
-}
