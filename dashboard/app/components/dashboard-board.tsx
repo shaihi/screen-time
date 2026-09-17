@@ -1,20 +1,27 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { mergeLayout, movePanel, toggleWidth, type PanelLayout } from "@/lib/layout";
 
 const STORAGE_KEY = "screen-time-layout-v1";
 
 export type BoardPanel = { id: string; title: string; wide: boolean; plain?: boolean; content: ReactNode };
 
-/** Panels the viewer can reorder by dragging the handle (mouse or touch) and resize. Saved per browser. */
+/**
+ * Dashboard panels in a saved order. "Customize" swaps the panels for a short list of names that can be
+ * dragged by their grip or moved with the arrow buttons, so it works the same with a mouse and on a phone.
+ */
 export function DashboardBoard({ panels }: { panels: BoardPanel[] }) {
   const defaults = panels.map(({ id, wide }) => ({ id, wide }));
   const [layout, setLayout] = useState<PanelLayout[]>(defaults);
-  const [dragging, setDragging] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const refs = useRef(new Map<string, HTMLElement>());
+  const [editing, setEditing] = useState(false);
   const defaultsJson = JSON.stringify(defaults);
+  const toolbar = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (editing) toolbar.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [editing]);
 
   useEffect(() => {
     let saved: unknown = null;
@@ -32,79 +39,101 @@ export function DashboardBoard({ panels }: { panels: BoardPanel[] }) {
 
   const byId = new Map(panels.map((panel) => [panel.id, panel]));
 
-  function onPointerDown(event: PointerEvent<HTMLButtonElement>, id: string) {
-    if (event.button !== 0) return;
+  return (
+    <>
+      <div className="board-toolbar" ref={toolbar}>
+        {editing ? (
+          <>
+            <button type="button" className="text-button" onClick={() => setLayout(defaults)}>Reset</button>
+            <button type="button" className="primary-button" onClick={() => setEditing(false)}>Done</button>
+          </>
+        ) : (
+          <button type="button" className="text-button" onClick={() => setEditing(true)}>Customize layout</button>
+        )}
+      </div>
+      {editing ? (
+        <LayoutEditor layout={layout} titles={byId} onChange={setLayout} />
+      ) : (
+        <div className="board">
+          {layout.map(({ id, wide }) => {
+            const panel = byId.get(id);
+            if (!panel) return null;
+            return (
+              <section key={id} className={["board-item", wide ? "wide" : "", panel.plain ? "plain" : "panel"].filter(Boolean).join(" ")}>
+                {panel.content}
+              </section>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
+function LayoutEditor({ layout, titles, onChange }: {
+  layout: PanelLayout[];
+  titles: Map<string, BoardPanel>;
+  onChange: (update: (current: PanelLayout[]) => PanelLayout[]) => void;
+}) {
+  const [dragging, setDragging] = useState<string | null>(null);
+  const rows = useRef(new Map<string, HTMLElement>());
+
+  function startDrag(event: PointerEvent<HTMLElement>, id: string) {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     setDragging(id);
   }
 
-  function onPointerMove(event: PointerEvent<HTMLButtonElement>) {
+  function drag(event: PointerEvent<HTMLElement>) {
     if (!dragging) return;
     const target = layout.findIndex(({ id }) => {
-      if (id === dragging) return false;
-      const rect = refs.current.get(id)?.getBoundingClientRect();
-      return !!rect && event.clientX >= rect.left && event.clientX <= rect.right
-        && event.clientY >= rect.top && event.clientY <= rect.bottom;
+      const rect = rows.current.get(id)?.getBoundingClientRect();
+      return !!rect && event.clientY >= rect.top && event.clientY <= rect.bottom;
     });
-    if (target >= 0) setLayout((current) => movePanel(current, dragging, target));
+    if (target >= 0) onChange((current) => movePanel(current, dragging, target));
   }
 
-  function endDrag(event: PointerEvent<HTMLButtonElement>) {
+  function endDrag(event: PointerEvent<HTMLElement>) {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     setDragging(null);
   }
 
-  function onKeyDown(event: KeyboardEvent<HTMLButtonElement>, id: string, index: number) {
-    const step = event.key === "ArrowUp" || event.key === "ArrowLeft" ? -1
-      : event.key === "ArrowDown" || event.key === "ArrowRight" ? 1 : 0;
-    if (!step) return;
-    event.preventDefault();
-    setLayout((current) => movePanel(current, id, index + step));
-  }
-
   return (
-    <>
-      <div className="board-toolbar">
-        <span>Drag ⠿ to rearrange · ⇔ to resize</span>
-        <button type="button" onClick={() => setLayout(defaults)}>Reset layout</button>
-      </div>
-      <div className="board">
+    <div className="layout-editor">
+      <p className="panel-note">Drag a row by its handle, or use the arrows. The dashboard shows panels in this order.</p>
+      <ol>
         {layout.map(({ id, wide }, index) => {
-          const panel = byId.get(id);
-          if (!panel) return null;
-          const classes = ["board-item", wide ? "wide" : "", panel.plain ? "plain" : "panel", dragging === id ? "dragging" : ""];
+          const title = titles.get(id)?.title ?? id;
           return (
-            <section
+            <li
               key={id}
-              className={classes.filter(Boolean).join(" ")}
-              ref={(element) => { if (element) refs.current.set(id, element); else refs.current.delete(id); }}
+              className={dragging === id ? "dragging" : ""}
+              ref={(element) => { if (element) rows.current.set(id, element); else rows.current.delete(id); }}
             >
-              <div className="board-controls">
-                <button
-                  type="button"
-                  className="drag-handle"
-                  aria-label={`Move ${panel.title} (arrow keys)`}
-                  title="Drag to move"
-                  onPointerDown={(event) => onPointerDown(event, id)}
-                  onPointerMove={onPointerMove}
-                  onPointerUp={endDrag}
-                  onPointerCancel={endDrag}
-                  onKeyDown={(event) => onKeyDown(event, id, index)}
-                >⠿</button>
-                <button
-                  type="button"
-                  className="size-toggle"
-                  aria-label={wide ? `Make ${panel.title} narrow` : `Make ${panel.title} wide`}
-                  title={wide ? "Make narrow" : "Make wide"}
-                  onClick={() => setLayout((current) => toggleWidth(current, id))}
-                >⇔</button>
-              </div>
-              {panel.content}
-            </section>
+              <span
+                className="grip"
+                aria-hidden="true"
+                onPointerDown={(event) => startDrag(event, id)}
+                onPointerMove={drag}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+              >⠿</span>
+              <strong>{title}</strong>
+              <button
+                type="button"
+                className="width-toggle"
+                aria-pressed={wide}
+                onClick={() => onChange((current) => toggleWidth(current, id))}
+              >{wide ? "Full width" : "Half width"}</button>
+              <button type="button" aria-label={`Move ${title} up`} disabled={index === 0}
+                onClick={() => onChange((current) => movePanel(current, id, index - 1))}>↑</button>
+              <button type="button" aria-label={`Move ${title} down`} disabled={index === layout.length - 1}
+                onClick={() => onChange((current) => movePanel(current, id, index + 1))}>↓</button>
+            </li>
           );
         })}
-      </div>
-    </>
+      </ol>
+    </div>
   );
 }

@@ -1,4 +1,4 @@
-import { formatDuration } from "@/lib/format";
+import { formatShortDuration } from "@/lib/format";
 import type { RangeKey } from "@/lib/range";
 import type { DashboardSummary } from "@/lib/types";
 
@@ -28,7 +28,7 @@ export function AppsPanel({ summary, range }: { summary: DashboardSummary | null
           <div className="app-row" key={app.name}>
             <span className="app-rank">{String(index + 1).padStart(2, "0")}</span>
             <div className="app-name"><strong>{app.name}</strong><span><i style={{ width: `${app.percent}%` }} /></span></div>
-            <time>{formatDuration(app.seconds)}</time>
+            <time>{formatShortDuration(app.seconds)}</time>
             <VisibilityForm action="hide" appName={app.name} range={range}>
               <button className="hide-app" type="submit" title={`Hide ${app.name} from this list`} aria-label={`Hide ${app.name} from this list`}>×</button>
             </VisibilityForm>

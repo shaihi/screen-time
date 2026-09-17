@@ -8,17 +8,18 @@ test("consecutive minutes of one app form a single session", () => {
   const sessions = buildSessions([
     { startedAt: at("10:00"), app: "Roblox", seconds: 30 },
     { startedAt: at("10:01"), app: "Roblox", seconds: 60 },
-    { startedAt: at("10:03"), app: "Roblox", seconds: 20 },
+    { startedAt: at("10:02"), app: "Roblox", seconds: 20 },
   ]);
-  assert.deepEqual(sessions, [{ app: "Roblox", start: at("10:00"), end: at("10:04"), seconds: 110 }]);
+  assert.deepEqual(sessions, [{ app: "Roblox", start: at("10:00"), end: at("10:03"), seconds: 110 }]);
 });
 
-test("a gap longer than the allowance starts a new session, newest first", () => {
+test("any skipped minute starts a new session, newest first", () => {
   const sessions = buildSessions([
     { startedAt: at("10:00"), app: "Roblox", seconds: 60 },
-    { startedAt: at("10:10"), app: "Roblox", seconds: 15 },
+    { startedAt: at("10:02"), app: "Roblox", seconds: 15 },
   ]);
-  assert.deepEqual(sessions.map((session) => session.start), [at("10:10"), at("10:00")]);
+  assert.deepEqual(sessions.map((session) => session.start), [at("10:02"), at("10:00")]);
+  assert.equal(sessions.reduce((sum, session) => sum + session.seconds, 0), 75);
 });
 
 test("interleaved apps keep separate sessions", () => {

@@ -22,7 +22,10 @@ export function formatDay(iso: string, timeZone: string) {
   return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone });
 }
 
-/** Like formatDuration, but shows seconds for anything under a minute. */
+/** Exact duration for detail rows: "45s", "6m 20s", "1h 05m". */
 export function formatShortDuration(totalSeconds: number) {
-  return totalSeconds < 60 ? `${totalSeconds}s` : formatDuration(totalSeconds);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  if (totalSeconds >= 3600) return formatDuration(totalSeconds);
+  const seconds = totalSeconds % 60;
+  return seconds ? `${Math.floor(totalSeconds / 60)}m ${seconds}s` : `${totalSeconds / 60}m`;
 }

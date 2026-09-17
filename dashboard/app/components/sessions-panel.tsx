@@ -25,10 +25,13 @@ export function SessionsPanel({ sessions, timeZone, showDate }: { sessions: AppS
       </div>
       {visible.length ? (
         <>
-          <p className="panel-note">{visible.length} {visible.length === 1 ? "session" : "sessions"} · {formatShortDuration(total)}</p>
+          <p className="panel-note">
+            {visible.length} {visible.length === 1 ? "session" : "sessions"} · {formatShortDuration(total)} in use.
+            From/To are whole minutes; “In use” counts only the seconds the app was actually in front.
+          </p>
           <div className="table-scroll">
             <table className="usage-table">
-              <thead><tr>{showDate ? <th>Day</th> : null}<th>App</th><th>From</th><th>To</th><th>Time</th></tr></thead>
+              <thead><tr>{showDate ? <th>Day</th> : null}<th>App</th><th>From</th><th>To</th><th>In use</th></tr></thead>
               <tbody>
                 {visible.map((session) => (
                   <tr key={`${session.app}-${session.start}`}>
