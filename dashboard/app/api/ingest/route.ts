@@ -44,12 +44,12 @@ export async function POST(request: Request) {
     SELECT
       ${batchId}::uuid,
       ${deviceId},
-      x.started_at::timestamptz,
-      x.duration_seconds::integer,
+      x."startedAt"::timestamptz,
+      x."durationSeconds"::integer,
       x.state,
-      NULLIF(x.app_name, '')
+      NULLIF(x."appName", '')
     FROM jsonb_to_recordset(${JSON.stringify(samples)}::jsonb)
-      AS x(started_at text, duration_seconds integer, state text, app_name text)
+      AS x("startedAt" text, "durationSeconds" integer, state text, "appName" text)
     ON CONFLICT DO NOTHING
   `;
 
