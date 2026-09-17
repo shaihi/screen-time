@@ -2,12 +2,15 @@ import { database, ensureSchema } from "@/lib/db";
 import { rangeStartSql, type RangeKey } from "@/lib/range";
 import { buildOverlaps, buildSessions, type MinuteUsage } from "@/lib/sessions";
 import { systemAppNames } from "@/lib/system-apps";
+import { buildPageSessions, totalsByPage } from "@/lib/pages";
 import { buildTimelinePoints, type TimelineRow } from "@/lib/timeline";
 import type { DashboardSummary } from "@/lib/types";
 
 // Caps how much detail the page renders for long ranges.
 const MAX_SESSIONS = 300;
 const MAX_OVERLAPS = 100;
+const MAX_PAGE_VISITS = 300;
+const MAX_PAGE_TOTALS = 100;
 const TOP_APPS = 8;
 
 type Bounds = { start_at: string; start_day: string; today: string };
@@ -22,6 +25,8 @@ type TotalsRow = {
 };
 
 type MinuteRow = { epoch: number; app_name: string; seconds: number };
+
+type PageRow = MinuteRow & { page_title: string };
 
 // Neon returns untyped rows; this narrows a query's rows to the shape selected.
 async function rows<T>(query: PromiseLike<Array<Record<string, unknown>>>): Promise<T[]> {
@@ -72,7 +77,7 @@ export async function getSummary(range: RangeKey): Promise<DashboardSummary | nu
   const deviceId = totals[0].device_id;
   const appParams = [deviceId, bounds.start_at, systemNamesParam()];
 
-  const [timelineRows, apps, foregroundRows, backgroundRows, hiddenApps] = await Promise.all([
+  const [timelineRows, apps, foregroundRows, backgroundRows, hiddenApps, pageRows] = await Promise.all([
     rows<TimelineRow>(sql.query(
       `SELECT ${range === "day"
         ? "EXTRACT(HOUR FROM started_at AT TIME ZONE $1)::int::text"
@@ -107,10 +112,18 @@ export async function getSummary(range: RangeKey): Promise<DashboardSummary | nu
       appParams,
     )),
     rows<{ app_name: string }>(sql`SELECT app_name FROM excluded_apps ORDER BY app_name`),
+    rows<PageRow>(sql.query(
+      `SELECT EXTRACT(EPOCH FROM started_at)::float8 AS epoch, app_name, page_title, duration_seconds AS seconds
+      FROM page_visits
+      WHERE device_id = $1 AND started_at >= $2::timestamptz
+        AND NOT EXISTS (SELECT 1 FROM excluded_apps excluded WHERE excluded.app_name = page_visits.app_name)`,
+      [deviceId, bounds.start_at],
+    )),
   ]);
 
   const used = Number(totals[0].active_seconds) + Number(totals[0].media_seconds);
   const foreground = foregroundRows.map(toMinuteUsage);
+  const pageVisits = buildPageSessions(pageRows.map((row) => ({ ...toMinuteUsage(row), title: row.page_title })));
   return {
     range,
     timeZone,
@@ -124,6 +137,8 @@ export async function getSummary(range: RangeKey): Promise<DashboardSummary | nu
     apps: apps.map((app) => ({ ...app, seconds: Number(app.seconds), percent: used ? Number(app.seconds) / used * 100 : 0 })),
     hiddenApps: hiddenApps.map((app) => app.app_name),
     sessions: buildSessions(foreground).slice(0, MAX_SESSIONS),
+    pages: pageVisits.slice(0, MAX_PAGE_VISITS),
+    pageTotals: totalsByPage(pageVisits).slice(0, MAX_PAGE_TOTALS),
     overlaps: buildOverlaps(foreground, backgroundRows.map(toMinuteUsage)).slice(0, MAX_OVERLAPS),
   };
 }

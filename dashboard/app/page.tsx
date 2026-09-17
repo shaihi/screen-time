@@ -3,6 +3,7 @@ import { AutoRefresh } from "@/app/components/auto-refresh";
 import { DashboardBoard, type BoardPanel } from "@/app/components/dashboard-board";
 import { MetricsPanel } from "@/app/components/metrics-panel";
 import { OverlapsPanel } from "@/app/components/overlaps-panel";
+import { PagesPanel } from "@/app/components/pages-panel";
 import { RangeShell } from "@/app/components/range-shell";
 import { SessionsPanel } from "@/app/components/sessions-panel";
 import { Timeline, TimelineLegend } from "@/app/components/timeline";
@@ -52,6 +53,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
       content: <SessionsPanel sessions={summary?.sessions || []} timeZone={timeZone} showDate={showDate} />,
     },
     {
+      id: "pages",
+      title: "Pages",
+      wide: true,
+      content: (
+        <PagesPanel visits={summary?.pages || []} totals={summary?.pageTotals || []} timeZone={timeZone} showDate={showDate} />
+      ),
+    },
+    {
       id: "overlaps",
       title: "Overlap",
       wide: true,
@@ -82,7 +91,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
 
       <DashboardBoard panels={panels} />
       </RangeShell>
-      <footer>Private by design · no screenshots, keystrokes, URLs, or media titles</footer>
+      <footer>Private by design · no screenshots, keystrokes, or web addresses</footer>
     </main>
   );
 }

@@ -1,4 +1,5 @@
 import type { RangeKey } from "@/lib/range";
+import type { PageTotal, PageVisit } from "@/lib/pages";
 import type { AppSession, OverlapPeriod } from "@/lib/sessions";
 import type { TimelinePoint } from "@/lib/timeline";
 
@@ -30,4 +31,6 @@ export type DashboardSummary = {
   hiddenApps: string[];
   sessions: AppSession[];
   overlaps: OverlapPeriod[];
+  pages: PageVisit[];
+  pageTotals: PageTotal[];
 };
