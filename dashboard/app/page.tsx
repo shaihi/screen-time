@@ -2,6 +2,7 @@ import { AutoRefresh } from "@/app/components/auto-refresh";
 import { Timeline } from "@/app/components/timeline";
 import { database, ensureSchema } from "@/lib/db";
 import { formatDuration, formatLastSeen } from "@/lib/format";
+import { agentOfflineAfterMinutes, systemAppNames } from "@/lib/system-apps";
 import type { DashboardSummary } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -47,17 +48,19 @@ async function getSummary(): Promise<DashboardSummary | null> {
   ) as Array<{ hour: number; state: string; seconds: number }>;
 
   const apps = await sql.query(
-    `SELECT COALESCE(app_name, 'Unknown') AS name, SUM(duration_seconds)::int AS seconds
+    `SELECT app_name AS name, SUM(duration_seconds)::int AS seconds
     FROM activity_segments
     WHERE device_id = $2 AND state IN ('active', 'media')
+      AND app_name IS NOT NULL
+      AND NOT (lower(app_name) = ANY($3::text[]))
       AND NOT EXISTS (
         SELECT 1 FROM excluded_apps excluded
-        WHERE excluded.app_name = COALESCE(activity_segments.app_name, 'Unknown')
+        WHERE excluded.app_name = activity_segments.app_name
       )
       AND started_at >= (date_trunc('day', NOW() AT TIME ZONE $1) AT TIME ZONE $1)
       AND started_at < ((date_trunc('day', NOW() AT TIME ZONE $1) + interval '1 day') AT TIME ZONE $1)
     GROUP BY 1 ORDER BY 2 DESC LIMIT 8`,
-    [timeZone, deviceId],
+    [timeZone, deviceId, systemAppNames.map((name) => name.toLowerCase())],
   ) as Array<{ name: string; seconds: number }>;
 
   const hiddenApps = await sql`SELECT app_name FROM excluded_apps ORDER BY app_name` as Array<{ app_name: string }>;
@@ -82,11 +85,17 @@ async function getSummary(): Promise<DashboardSummary | null> {
   };
 }
 
+function isOnline(lastSeenAt: string | null) {
+  if (!lastSeenAt) return false;
+  return Date.now() - new Date(lastSeenAt).getTime() < agentOfflineAfterMinutes * 60_000;
+}
+
 export default async function Home() {
   const summary = await getSummary();
   const usedSeconds = summary ? summary.activeSeconds + summary.mediaSeconds : 0;
   const observedSeconds = summary ? usedSeconds + summary.idleSeconds : 0;
   const focusPercent = observedSeconds ? Math.round(usedSeconds / observedSeconds * 100) : 0;
+  const online = isOnline(summary?.lastSeenAt || null);
 
   return (
     <main>
@@ -103,8 +112,8 @@ export default async function Home() {
           <p className="subtitle">meaningful screen time</p>
         </div>
         <div className="connection">
-          <span className={summary ? "status-dot online" : "status-dot"} />
-          <div><strong>{summary ? "Agent connected" : "No data received"}</strong><small>{formatLastSeen(summary?.lastSeenAt || null)}</small></div>
+          <span className={online ? "status-dot online" : "status-dot"} />
+          <div><strong>{summary ? (online ? "Agent connected" : "Agent offline") : "No data received"}</strong><small>{formatLastSeen(summary?.lastSeenAt || null)}</small></div>
         </div>
       </section>
 
@@ -134,7 +143,7 @@ export default async function Home() {
                   <button className="hide-app" type="submit" title={`Hide ${app.name} from this list`} aria-label={`Hide ${app.name} from this list`}>×</button>
                 </form>
               </div>
-            )) : <p className="empty">Usage will appear after the first five-minute upload.</p>}
+            )) : <p className="empty">Usage will appear after the first upload.</p>}
           </div>
           {summary?.hiddenApps.length ? (
             <details className="hidden-apps">

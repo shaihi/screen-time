@@ -16,14 +16,24 @@ internal sealed class MinuteAggregator
         return completed;
     }
 
+    /// <summary>Completes the current minute and resets.</summary>
     public IReadOnlyList<ActivitySample> Flush()
     {
-        if (_minute is null || _seconds.Count == 0) return Array.Empty<ActivitySample>();
-        var samples = _seconds.Select(item => new ActivitySample(
-            _minute.Value, Math.Min(60, item.Value), item.Key.State.ToString().ToLowerInvariant(),
-            string.IsNullOrEmpty(item.Key.App) ? null : item.Key.App)).ToArray();
+        var samples = Snapshot();
         _seconds.Clear();
         _minute = null;
         return samples;
+    }
+
+    /// <summary>
+    /// Cumulative totals for the minute still in progress. The server keeps the largest value per
+    /// minute/state/app, so sending a snapshot and later the completed minute never double-counts.
+    /// </summary>
+    public IReadOnlyList<ActivitySample> Snapshot()
+    {
+        if (_minute is null || _seconds.Count == 0) return Array.Empty<ActivitySample>();
+        return _seconds.Select(item => new ActivitySample(
+            _minute.Value, Math.Min(60, item.Value), item.Key.State.ToString().ToLowerInvariant(),
+            string.IsNullOrEmpty(item.Key.App) ? null : item.Key.App)).ToArray();
     }
 }

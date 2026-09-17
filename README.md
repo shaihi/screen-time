@@ -2,7 +2,7 @@
 
 A private, minute-level Windows screen-time monitor with a Vercel-hosted dashboard.
 
-The Windows agent lives only in the notification tray—there is no taskbar window. It distinguishes hands-on activity, media playback, idle time, and a locked workstation. Five-second observations are aggregated into minute buckets locally, then uploaded in a signed batch every five minutes.
+The Windows agent lives only in the notification tray—there is no taskbar window. It distinguishes hands-on activity, media playback, idle time, and a locked workstation. Two-second observations are aggregated into minute buckets locally, then uploaded in a signed batch every minute (including the minute in progress). Store apps are named by their package, and Windows shell processes are not reported.
 
 ## Privacy boundary
 
@@ -69,14 +69,14 @@ To remove the agent and its local queued data:
 
 ## How activity is classified
 
-Every five seconds, in priority order:
+Every two seconds, in priority order:
 
 1. A locked Windows desktop is `locked`.
 2. Input within the configured idle threshold (default: 120 seconds) is `active`.
 3. With no recent input, an active Windows media session is `media`.
 4. Otherwise the computer is `idle`.
 
-The fine observations never leave the device. Each completed UTC minute is reduced to one or more state/app totals, accurate to the five-second observation interval. Browser video normally advertises a Windows media session, so Netflix and YouTube continue to count while the viewer is not touching the mouse or keyboard.
+The fine observations never leave the device. Each completed UTC minute is reduced to one or more state/app totals, accurate to the two-second observation interval. Browser video normally advertises a Windows media session, so Netflix and YouTube continue to count while the viewer is not touching the mouse or keyboard.
 
 ## Local dashboard development
 
