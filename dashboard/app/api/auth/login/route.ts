@@ -9,14 +9,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "Cross-origin request rejected" }, { status: 403 });
   }
 
-  const expectedUser = process.env.DASHBOARD_USER;
   const expectedPassword = process.env.DASHBOARD_PASSWORD;
-  if (!expectedUser || !expectedPassword) return new Response("Authentication is not configured", { status: 503 });
+  if (!expectedPassword) return new Response("Authentication is not configured", { status: 503 });
 
   const form = await request.formData();
-  const username = String(form.get("username") || "");
-  const password = String(form.get("password") || "");
-  if (!credentialsMatch(username, expectedUser) || !credentialsMatch(password, expectedPassword)) {
+  const password = String(form.get("password") || "").trim();
+  if (!credentialsMatch(password, expectedPassword.trim())) {
     return NextResponse.redirect(new URL("/login?error=1", request.url), 303);
   }
 

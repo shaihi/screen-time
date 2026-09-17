@@ -35,13 +35,12 @@ Use this only on a computer you own or administer, with the knowledge of the per
 2. Add a Neon Postgres integration from the Vercel Marketplace. Confirm it provides `DATABASE_URL`.
 3. Add these environment variables to Production and Preview:
    - `INGEST_SECRET`: a random value of at least 32 characters
-   - `DASHBOARD_USER`: the dashboard login name
    - `DASHBOARD_PASSWORD`: a long, unique password
    - `DISPLAY_TIME_ZONE`: for example `Asia/Jerusalem`
 4. Deploy. The schema is created on first dashboard/API access.
 5. Verify `https://YOUR-PROJECT.vercel.app/api/health` returns `{"ok":true,...}`.
 
-The dashboard uses a normal sign-in form over HTTPS and stores only an HMAC-signed, HTTP-only session cookie in the browser. The ingest endpoint uses a separate HMAC-SHA256 signature and rejects requests whose timestamps are more than ten minutes from the server clock.
+The dashboard uses a password-only sign-in form over HTTPS and stores only an HMAC-signed, HTTP-only session cookie in the browser. Leading or trailing spaces introduced by copy/paste are ignored. The ingest endpoint uses a separate HMAC-SHA256 signature and rejects requests whose timestamps are more than ten minutes from the server clock.
 
 ## Install the Windows agent
 

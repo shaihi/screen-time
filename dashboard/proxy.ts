@@ -11,9 +11,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const expectedUser = process.env.DASHBOARD_USER;
   const expectedPassword = process.env.DASHBOARD_PASSWORD;
-  if (!expectedUser || !expectedPassword) {
+  if (!expectedPassword) {
     if (!process.env.VERCEL) return NextResponse.next();
     return new NextResponse("Dashboard authentication is not configured", { status: 503 });
   }
