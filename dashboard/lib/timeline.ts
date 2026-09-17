@@ -6,7 +6,17 @@ export const OTHER_APPS = "Other apps";
 
 export type TimelineSegment = { app: string; category: Category; seconds: number };
 
-export type TimelinePoint = { key: string; label: string; title: string; idle: number; segments: TimelineSegment[] };
+export type AppSeconds = { app: string; seconds: number };
+
+/** `idleApps`: named apps that were in front while idle, i.e. left running. */
+export type TimelinePoint = {
+  key: string;
+  label: string;
+  title: string;
+  idle: number;
+  idleApps: AppSeconds[];
+  segments: TimelineSegment[];
+};
 
 /** `app` is null for time that has no listed app (system or hidden apps). */
 export type TimelineRow = { bucket: string; state: string; app: string | null; seconds: number };
@@ -46,6 +56,10 @@ export function buildTimelinePoints(
       .filter(([, seconds]) => seconds > 0)
       .map(([app, seconds]) => ({ app, category: app === OTHER_APPS ? "other" as const : categoryOf(app), seconds }))
       .sort((a, b) => rank(a) - rank(b) || b.seconds - a.seconds);
-    return { ...point, idle, segments };
+    const idleApps = own
+      .filter((row) => row.state === "idle" && row.app && Number(row.seconds) > 0)
+      .map((row) => ({ app: row.app as string, seconds: Number(row.seconds) }))
+      .sort((a, b) => b.seconds - a.seconds);
+    return { ...point, idle, idleApps, segments };
   });
 }

@@ -42,6 +42,18 @@ export function AppsPanel({ summary, range }: { summary: DashboardSummary | null
           );
         }) : <p className="empty">Usage will appear after the first upload.</p>}
       </div>
+      {summary?.leftRunning.length ? (
+        <div className="left-running">
+          <p className="eyebrow">LEFT RUNNING · NO INPUT</p>
+          {summary.leftRunning.map((app) => (
+            <div className="left-running-row" key={app.name}>
+              <span><i className={`swatch cat-${categoryOf(app.name)}`} />{app.name}</span>
+              <time>{formatShortDuration(app.seconds)}</time>
+            </div>
+          ))}
+          <p className="panel-note">In front with no keyboard or mouse input for 2+ minutes (for example a game left on). Counted as idle, not screen time.</p>
+        </div>
+      ) : null}
       {summary?.hiddenApps.length ? (
         <details className="hidden-apps">
           <summary>{summary.hiddenApps.length} hidden {summary.hiddenApps.length === 1 ? "app" : "apps"}</summary>

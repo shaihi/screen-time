@@ -1,6 +1,6 @@
 import { database, ensureSchema } from "@/lib/db";
 import { rangeStartSql, type RangeKey } from "@/lib/range";
-import { buildOverlaps, buildSessions, type MinuteUsage } from "@/lib/sessions";
+import { buildOverlaps, buildSessions, mergeSessionKinds, type MinuteUsage } from "@/lib/sessions";
 import { systemAppNames } from "@/lib/system-apps";
 import { buildPageSessions, totalsByPage } from "@/lib/pages";
 import { buildTimelinePoints, type TimelineRow } from "@/lib/timeline";
@@ -77,7 +77,7 @@ export async function getSummary(range: RangeKey): Promise<DashboardSummary | nu
   const deviceId = totals[0].device_id;
   const appParams = [deviceId, bounds.start_at, systemNamesParam()];
 
-  const [timelineRows, apps, foregroundRows, backgroundRows, hiddenApps, pageRows] = await Promise.all([
+  const [timelineRows, apps, foregroundRows, backgroundRows, hiddenApps, pageRows, idleRows] = await Promise.all([
     rows<TimelineRow>(sql.query(
       `SELECT ${range === "day"
         ? "EXTRACT(HOUR FROM started_at AT TIME ZONE $1)::int::text"
@@ -119,10 +119,18 @@ export async function getSummary(range: RangeKey): Promise<DashboardSummary | nu
         AND NOT EXISTS (SELECT 1 FROM excluded_apps excluded WHERE excluded.app_name = page_visits.app_name)`,
       [deviceId, bounds.start_at],
     )),
+    rows<MinuteRow>(sql.query(
+      `SELECT EXTRACT(EPOCH FROM started_at)::float8 AS epoch, app_name, SUM(duration_seconds)::int AS seconds
+      FROM activity_segments
+      WHERE state = 'idle' AND ${visibleAppFilter}
+      GROUP BY 1, 2`,
+      appParams,
+    )),
   ]);
 
   const used = Number(totals[0].active_seconds) + Number(totals[0].media_seconds);
   const foreground = foregroundRows.map(toMinuteUsage);
+  const leftRunning = buildSessions(idleRows.map(toMinuteUsage));
   const pageVisits = buildPageSessions(pageRows.map((row) => ({ ...toMinuteUsage(row), title: row.page_title })));
   return {
     range,
@@ -136,10 +144,17 @@ export async function getSummary(range: RangeKey): Promise<DashboardSummary | nu
     timeline: buildTimelinePoints(range, { startDay: bounds.start_day, today: bounds.today }, timelineRows),
     apps: apps.map((app) => ({ ...app, seconds: Number(app.seconds), percent: used ? Number(app.seconds) / used * 100 : 0 })),
     hiddenApps: hiddenApps.map((app) => app.app_name),
-    sessions: buildSessions(foreground).slice(0, MAX_SESSIONS),
+    sessions: mergeSessionKinds(buildSessions(foreground), leftRunning).slice(0, MAX_SESSIONS),
+    leftRunning: totalByApp(leftRunning).slice(0, TOP_APPS),
     pages: pageVisits.slice(0, MAX_PAGE_VISITS),
     pageTotals: totalsByPage(pageVisits).slice(0, MAX_PAGE_TOTALS),
     overlaps: buildOverlaps(foreground, backgroundRows.map(toMinuteUsage)).slice(0, MAX_OVERLAPS),
   };
 }
 
+
+function totalByApp(sessions: Array<{ app: string; seconds: number }>) {
+  const totals = new Map<string, number>();
+  for (const session of sessions) totals.set(session.app, (totals.get(session.app) ?? 0) + session.seconds);
+  return [...totals].map(([name, seconds]) => ({ name, seconds })).sort((a, b) => b.seconds - a.seconds);
+}

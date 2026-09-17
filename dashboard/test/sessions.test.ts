@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildOverlaps, buildSessions } from "../lib/sessions.ts";
+import { buildOverlaps, buildSessions, mergeSessionKinds } from "../lib/sessions.ts";
 
 const at = (time: string) => `2026-09-17T${time}:00.000Z`;
 
@@ -63,4 +63,12 @@ test("media from the app in use or in a different minute is not an overlap", () 
     ],
   );
   assert.deepEqual(overlaps, []);
+});
+
+test("left-running sessions are listed with in-use ones, newest first, and marked", () => {
+  const merged = mergeSessionKinds(
+    [{ app: "Roblox", start: at("10:00"), end: at("10:05"), seconds: 200 }],
+    [{ app: "Roblox", start: at("10:05"), end: at("11:00"), seconds: 3300 }],
+  );
+  assert.deepEqual(merged.map((session) => [session.start, session.kind]), [[at("10:05"), "left-running"], [at("10:00"), "in-use"]]);
 });

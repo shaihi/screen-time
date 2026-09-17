@@ -81,9 +81,14 @@ footer { text-align: center; color: #5b645e; font-size: 9px; letter-spacing: .05
 
 .cat-gaming { background: var(--cat-gaming); }.cat-social { background: var(--cat-social); }.cat-video { background: var(--cat-video); }.cat-music { background: var(--cat-music); }.cat-web { background: var(--cat-web); }.cat-productivity { background: var(--cat-productivity); }.cat-other { background: var(--cat-other); }
 .swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; flex: 0 0 auto; }.swatch.idle { background: var(--slate); }
-.chart-tip { position: absolute; left: 50%; transform: translateX(-50%); z-index: 5; min-width: 150px; max-width: 220px; padding: 9px 11px; display: flex; flex-direction: column; gap: 4px; background: #0b0e0c; border: 1px solid #3a433c; border-radius: 10px; box-shadow: 0 10px 30px #000a; pointer-events: none; }
+.chart-tip { position: absolute; left: 50%; transform: translateX(-50%); z-index: 5; min-width: 170px; max-width: 260px; padding: 9px 11px; display: flex; flex-direction: column; gap: 4px; background: #0b0e0c; border: 1px solid #3a433c; border-radius: 10px; box-shadow: 0 10px 30px #000a; pointer-events: none; }
 .chart-tip.start { left: 0; transform: none; }.chart-tip.end { left: auto; right: 0; transform: none; }
 .chart-tip .tip-when { color: var(--muted); font-size: 10px; }.chart-tip strong { color: var(--ink); font-size: 13px; overflow-wrap: anywhere; }
-.chart-tip .tip-row { display: flex; align-items: center; gap: 6px; color: #b5bdb6; font-size: 11px; }.chart-tip .tip-row b { margin-left: auto; padding-left: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.chart-tip .tip-row { white-space: nowrap; display: flex; align-items: center; gap: 6px; color: #b5bdb6; font-size: 11px; }.chart-tip .tip-row b { margin-left: auto; padding-left: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
 .panel-controls { display: flex; gap: 8px; flex-wrap: wrap; }.panel-controls input { min-width: 160px; }
 .pages-table .page-title { white-space: normal; max-width: 520px; }.pages-table .page-title strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.left-running { margin-top: 16px; border-top: 1px solid #252b27; padding-top: 14px; }.left-running .eyebrow { margin-bottom: 6px; }
+.left-running-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 12px; color: #c7cec8; }.left-running-row span { display: inline-flex; align-items: center; gap: 8px; }.left-running-row time { font: 11px var(--font-display), sans-serif; }
+.usage-table tr.left-running td { color: var(--muted); }.usage-table tr.left-running strong { color: #aab3ad; }
+.badge { display: inline-block; margin-left: 8px; padding: 2px 6px; border: 1px solid #3a433c; border-radius: 6px; color: var(--muted); font-size: 9px; letter-spacing: .04em; vertical-align: middle; }
+.chart-tip .tip-row.sub { color: var(--muted); }

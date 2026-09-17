@@ -2,15 +2,17 @@
 
 import { useMemo, useState } from "react";
 import { formatClock, formatDay, formatShortDuration } from "@/lib/format";
-import type { AppSession } from "@/lib/sessions";
+import type { UsageSession } from "@/lib/sessions";
 
 const ALL_APPS = "";
 
-export function SessionsPanel({ sessions, timeZone, showDate }: { sessions: AppSession[]; timeZone: string; showDate: boolean }) {
+export function SessionsPanel({ sessions, timeZone, showDate }: { sessions: UsageSession[]; timeZone: string; showDate: boolean }) {
   const [app, setApp] = useState(ALL_APPS);
   const apps = useMemo(() => [...new Set(sessions.map((session) => session.app))].sort(), [sessions]);
   const visible = app === ALL_APPS ? sessions : sessions.filter((session) => session.app === app);
-  const total = visible.reduce((sum, session) => sum + session.seconds, 0);
+  const inUse = visible.filter((session) => session.kind === "in-use");
+  const total = inUse.reduce((sum, session) => sum + session.seconds, 0);
+  const leftRunning = visible.length - inUse.length;
 
   return (
     <>
@@ -26,17 +28,21 @@ export function SessionsPanel({ sessions, timeZone, showDate }: { sessions: AppS
       {visible.length ? (
         <>
           <p className="panel-note">
-            {visible.length} {visible.length === 1 ? "session" : "sessions"} · {formatShortDuration(total)} in use.
-            From/To are whole minutes; “In use” counts only the seconds the app was actually in front.
+            {inUse.length} {inUse.length === 1 ? "session" : "sessions"} · {formatShortDuration(total)} in use
+            {leftRunning ? ` · ${leftRunning} left running (not counted)` : ""}.
+            From/To are whole minutes; “Time” counts only the seconds the app was actually in front.
           </p>
           <div className="table-scroll">
             <table className="usage-table">
-              <thead><tr>{showDate ? <th>Day</th> : null}<th>App</th><th>From</th><th>To</th><th>In use</th></tr></thead>
+              <thead><tr>{showDate ? <th>Day</th> : null}<th>App</th><th>From</th><th>To</th><th>Time</th></tr></thead>
               <tbody>
                 {visible.map((session) => (
-                  <tr key={`${session.app}-${session.start}`}>
+                  <tr key={`${session.kind}-${session.app}-${session.start}`} className={session.kind}>
                     {showDate ? <td>{formatDay(session.start, timeZone)}</td> : null}
-                    <td><strong>{session.app}</strong></td>
+                    <td>
+                      <strong>{session.app}</strong>
+                      {session.kind === "left-running" ? <span className="badge">left running</span> : null}
+                    </td>
                     <td>{formatClock(session.start, timeZone)}</td>
                     <td>{formatClock(session.end, timeZone)}</td>
                     <td>{formatShortDuration(session.seconds)}</td>
