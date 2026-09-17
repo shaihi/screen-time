@@ -1,0 +1,9 @@
+packages:
+  - dashboard
+
+onlyBuiltDependencies:
+  - unrs-resolver
+
+confirmModulesPurge: false
+allowBuilds:
+  unrs-resolver: true

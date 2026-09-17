@@ -1,0 +1,11 @@
+{
+  "name": "screen-time-monitor",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "dev": "pnpm --dir dashboard dev",
+    "build": "pnpm --dir dashboard build",
+    "lint": "pnpm --dir dashboard lint",
+    "typecheck": "pnpm --dir dashboard typecheck"
+  }
+}

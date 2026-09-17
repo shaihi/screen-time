@@ -1,0 +1,96 @@
+# Screen Time
+
+A private, minute-level Windows screen-time monitor with a Vercel-hosted dashboard.
+
+The Windows agent lives only in the notification tray—there is no taskbar window. It distinguishes hands-on activity, media playback, idle time, and a locked workstation. Five-second observations are aggregated into minute buckets locally, then uploaded in a signed batch every five minutes.
+
+## Privacy boundary
+
+Collected:
+
+- Device label
+- Minute timestamp and number of observed seconds
+- State: `active`, `media`, `idle`, or `locked`
+- Foreground or playing application name (for example, Google Chrome)
+
+Never collected:
+
+- Keystrokes or typed text
+- Screenshots or camera/microphone data
+- Browser URLs, page titles, search terms, or media titles
+- File names or document contents
+
+Use this only on a computer you own or administer, with the knowledge of the person using it. The tray icon and pause/exit controls are intentionally visible.
+
+## Repository layout
+
+- `agent/ScreenTime.Agent` — .NET 8 Windows tray agent
+- `agent/install.ps1` — publishes and installs the agent for the current user
+- `dashboard` — Next.js dashboard and authenticated ingest API
+- `.env.example` — Vercel/database configuration template
+
+## Deploy the dashboard
+
+1. Import this repository into Vercel and set the **Root Directory** to `dashboard`.
+2. Add a Neon Postgres integration from the Vercel Marketplace. Confirm it provides `DATABASE_URL`.
+3. Add these environment variables to Production and Preview:
+   - `INGEST_SECRET`: a random value of at least 32 characters
+   - `DASHBOARD_USER`: the dashboard login name
+   - `DASHBOARD_PASSWORD`: a long, unique password
+   - `DISPLAY_TIME_ZONE`: for example `Asia/Jerusalem`
+4. Deploy. The schema is created on first dashboard/API access.
+5. Verify `https://YOUR-PROJECT.vercel.app/api/health` returns `{"ok":true,...}`.
+
+The dashboard uses HTTP Basic authentication over HTTPS. The ingest endpoint uses an HMAC-SHA256 signature and rejects requests whose timestamps are more than ten minutes from the server clock.
+
+## Install the Windows agent
+
+Requirements for building: Windows 10/11 and the .NET 8 SDK. The published executable is self-contained, so the monitored account does not need .NET after installation.
+
+From PowerShell in this repository:
+
+```powershell
+.\agent\install.ps1 `
+  -ApiUrl "https://YOUR-PROJECT.vercel.app/api/ingest" `
+  -IngestSecret "THE-SAME-SECRET-AS-VERCEL" `
+  -DeviceId "family-pc"
+```
+
+This publishes the agent, copies it to `%LOCALAPPDATA%\ScreenTimeAgent`, creates a current-user Startup shortcut, and launches the notification-tray icon. It does not request administrator elevation.
+
+Right-click the tray icon to upload immediately, pause for 30 minutes, resume, or exit. When offline, completed minute records remain queued locally and are retried later.
+
+To remove the agent and its local queued data:
+
+```powershell
+.\agent\uninstall.ps1
+```
+
+## How activity is classified
+
+Every five seconds, in priority order:
+
+1. A locked Windows desktop is `locked`.
+2. Input within the configured idle threshold (default: 120 seconds) is `active`.
+3. With no recent input, an active Windows media session is `media`.
+4. Otherwise the computer is `idle`.
+
+The fine observations never leave the device. Each completed UTC minute is reduced to one or more state/app totals, accurate to the five-second observation interval. Browser video normally advertises a Windows media session, so Netflix and YouTube continue to count while the viewer is not touching the mouse or keyboard.
+
+## Local dashboard development
+
+```powershell
+Copy-Item .env.example dashboard/.env.local
+pnpm install
+pnpm dev
+```
+
+Without `DATABASE_URL`, the dashboard renders its empty state. For a complete local test, use a disposable Postgres database and replace all placeholder secrets.
+
+## Operational notes
+
+- Upload cadence is controlled by `UploadIntervalMinutes` in the installed `appsettings.json`.
+- The agent is session-specific by design. A Windows service cannot reliably query foreground windows or per-user media sessions.
+- A browser may fail to expose playback if media controls are disabled. Such playback will become `idle` after the input threshold; this is a known limitation of the privacy-preserving, no-screen-capture approach.
+- Device clocks must be reasonably correct because signed requests expire after ten minutes.
+
