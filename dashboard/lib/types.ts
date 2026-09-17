@@ -1,5 +1,8 @@
 import type { RangeKey } from "@/lib/range";
 import type { AppSession, OverlapPeriod } from "@/lib/sessions";
+import type { TimelinePoint } from "@/lib/timeline";
+
+export type { TimelinePoint };
 
 // "background" is media playing while another app is in use; it is never added to totals.
 export const activityStates = ["active", "media", "idle", "locked", "background"] as const;
@@ -12,7 +15,6 @@ export type ActivitySample = {
   appName?: string | null;
 };
 
-export type TimelinePoint = { key: string; label: string; title: string; active: number; media: number; idle: number };
 
 export type DashboardSummary = {
   range: RangeKey;
