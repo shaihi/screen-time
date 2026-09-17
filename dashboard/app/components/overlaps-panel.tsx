@@ -8,7 +8,7 @@ export function OverlapsPanel({ overlaps, timeZone, showDate }: { overlaps: Over
       {overlaps.length ? (
         <div className="table-scroll">
           <table className="usage-table">
-            <thead><tr>{showDate ? <th>Day</th> : null}<th>Playing in background</th><th>While using</th><th>From</th><th>To</th><th>Time</th></tr></thead>
+            <thead><tr>{showDate ? <th>Day</th> : null}<th>Playing in background</th><th>While using</th><th>From</th><th>To</th><th>Together</th></tr></thead>
             <tbody>
               {overlaps.map((overlap) => (
                 <tr key={`${overlap.background}-${overlap.foreground}-${overlap.start}`}>

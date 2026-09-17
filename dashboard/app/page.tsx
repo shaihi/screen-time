@@ -1,13 +1,13 @@
-import Link from "next/link";
 import { AppsPanel } from "@/app/components/apps-panel";
 import { AutoRefresh } from "@/app/components/auto-refresh";
 import { DashboardBoard, type BoardPanel } from "@/app/components/dashboard-board";
 import { MetricsPanel } from "@/app/components/metrics-panel";
 import { OverlapsPanel } from "@/app/components/overlaps-panel";
+import { RangeShell } from "@/app/components/range-shell";
 import { SessionsPanel } from "@/app/components/sessions-panel";
 import { Timeline } from "@/app/components/timeline";
 import { formatDuration, formatLastSeen } from "@/lib/format";
-import { parseRange, rangeKeys, rangeLabels } from "@/lib/range";
+import { parseRange, rangeLabels } from "@/lib/range";
 import { getSummary } from "@/lib/summary";
 import { agentOfflineAfterMinutes } from "@/lib/system-apps";
 
@@ -67,14 +67,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
         <div className="header-actions"><div className="live"><span /> Live · refreshes every minute</div><form action="/api/auth/logout" method="post"><button className="logout" type="submit">Sign out</button></form></div>
       </header>
 
-      <nav className="range-tabs" aria-label="Time range">
-        {rangeKeys.map((key) => (
-          <Link key={key} href={key === "day" ? "/" : `/?range=${key}`} className={key === range ? "active" : ""} aria-current={key === range ? "page" : undefined}>
-            {rangeLabels[key].tab}
-          </Link>
-        ))}
-      </nav>
-
+      <RangeShell range={range}>
       <section className="hero">
         <div>
           <p className="eyebrow">{rangeLabels[range].eyebrow} · {summary?.deviceId || "WAITING FOR DEVICE"}</p>
@@ -88,6 +81,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
       </section>
 
       <DashboardBoard panels={panels} />
+      </RangeShell>
       <footer>Private by design · no screenshots, keystrokes, URLs, or media titles</footer>
     </main>
   );
