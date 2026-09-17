@@ -40,6 +40,17 @@ export async function ensureSchema() {
         ON activity_segments (device_id, started_at DESC)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_activity_segments_started
         ON activity_segments (started_at DESC)`;
+      // Browser page titles (agent 1.3+). Kept apart so they never add to activity totals.
+      await sql`CREATE TABLE IF NOT EXISTS page_visits (
+        device_id TEXT NOT NULL,
+        started_at TIMESTAMPTZ NOT NULL,
+        duration_seconds INTEGER NOT NULL CHECK (duration_seconds BETWEEN 1 AND 3600),
+        app_name TEXT NOT NULL,
+        page_title TEXT NOT NULL,
+        received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (device_id, started_at, app_name, page_title),
+        CHECK (date_trunc('minute', started_at) = started_at)
+      )`;
       await sql`CREATE TABLE IF NOT EXISTS excluded_apps (
         app_name TEXT PRIMARY KEY,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
