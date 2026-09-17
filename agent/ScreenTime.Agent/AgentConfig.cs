@@ -8,7 +8,8 @@ internal sealed record AgentConfig(
     string DeviceId,
     int IdleThresholdSeconds = 120,
     int SampleIntervalSeconds = 2,
-    int UploadIntervalMinutes = 1)
+    int UploadIntervalMinutes = 1,
+    bool CollectPageTitles = true)
 {
     public static AgentConfig Load()
     {

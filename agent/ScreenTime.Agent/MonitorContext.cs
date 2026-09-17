@@ -54,7 +54,9 @@ internal sealed class MonitorContext : ApplicationContext
         _sampling = true;
         try
         {
-            var classification = await _activity.ClassifyAsync(_config.IdleThresholdSeconds);
+            var classification = await _activity.ClassifyAsync(
+                _config.IdleThresholdSeconds,
+                _config.CollectPageTitles);
             if (_stopping) return;
             IReadOnlyList<ActivitySample> completed;
             lock (_aggregatorLock) completed = _aggregator.Observe(DateTimeOffset.UtcNow, classification, _config.SampleIntervalSeconds);

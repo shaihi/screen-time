@@ -11,6 +11,7 @@
     <Compile Include="..\ScreenTime.Agent\AppNames.cs" Link="Agent\AppNames.cs" />
     <Compile Include="..\ScreenTime.Agent\MinuteAggregator.cs" Link="Agent\MinuteAggregator.cs" />
     <Compile Include="..\ScreenTime.Agent\Models.cs" Link="Agent\Models.cs" />
+    <Compile Include="..\ScreenTime.Agent\PageTitles.cs" Link="Agent\PageTitles.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />

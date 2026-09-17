@@ -18,6 +18,11 @@ if (Test-Path -LiteralPath $configPath) {
 if (-not $ApiUrl -and $existing) { $ApiUrl = $existing.ApiUrl }
 if (-not $IngestSecret -and $existing) { $IngestSecret = $existing.IngestSecret }
 if (-not $DeviceId) { $DeviceId = if ($existing) { $existing.DeviceId } else { "family-pc" } }
+$collectPageTitles = if ($existing -and $existing.PSObject.Properties.Name -contains "CollectPageTitles") {
+    [bool]$existing.CollectPageTitles
+} else {
+    $true
+}
 if (-not $ApiUrl -or -not $IngestSecret) {
     throw "ApiUrl and IngestSecret are required for a first install."
 }
@@ -53,6 +58,7 @@ $config = [ordered]@{
     IdleThresholdSeconds = 120
     SampleIntervalSeconds = 2
     UploadIntervalMinutes = 1
+    CollectPageTitles = $collectPageTitles
 } | ConvertTo-Json
 Set-Content -LiteralPath $configPath -Value $config -Encoding UTF8
 

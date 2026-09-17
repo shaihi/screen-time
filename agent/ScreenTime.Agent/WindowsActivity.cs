@@ -16,13 +16,16 @@ internal sealed class WindowsActivity
     private readonly Dictionary<(uint ProcessId, string ProcessName), string?> _processNames = new();
     private readonly Dictionary<string, string> _mediaNames = new(StringComparer.OrdinalIgnoreCase);
 
-    public async Task<Classification> ClassifyAsync(int idleThresholdSeconds)
+    public async Task<Classification> ClassifyAsync(int idleThresholdSeconds, bool collectPageTitles)
     {
         if (IsWorkstationLocked()) return new(ActivityState.Locked, null);
-        var foregroundApp = GetForegroundApp();
+        var (foregroundApp, windowTitle) = GetForegroundApp(collectPageTitles);
         var mediaApp = await GetPlayingMediaAppAsync();
         if (GetIdleSeconds() < idleThresholdSeconds)
-            return new(ActivityState.Active, foregroundApp, mediaApp != foregroundApp ? mediaApp : null);
+        {
+            var pageTitle = PageTitles.IsBrowser(foregroundApp) ? PageTitles.Clean(windowTitle) : null;
+            return new(ActivityState.Active, foregroundApp, mediaApp != foregroundApp ? mediaApp : null, pageTitle);
+        }
         return mediaApp is not null ? new(ActivityState.Media, mediaApp) : new(ActivityState.Idle, foregroundApp);
     }
 
@@ -49,18 +52,31 @@ internal sealed class WindowsActivity
         return name;
     }
 
-    private string? GetForegroundApp()
+    private (string? AppName, string? WindowTitle) GetForegroundApp(bool collectPageTitles)
     {
         try
         {
             var window = GetForegroundWindow();
-            if (window == IntPtr.Zero) return null;
+            if (window == IntPtr.Zero) return (null, null);
+            var windowTitle = collectPageTitles ? GetWindowTitle(window) : null;
             _ = GetWindowThreadProcessId(window, out var processId);
             using var process = Process.GetProcessById((int)processId);
             // Store (UWP) apps are drawn inside ApplicationFrameHost; the real app owns a child window.
             if (process.ProcessName.Equals("ApplicationFrameHost", StringComparison.OrdinalIgnoreCase))
-                return HostedAppName(window, processId);
-            return ProcessAppName(processId, process.ProcessName);
+                return (HostedAppName(window, processId), windowTitle);
+            return (ProcessAppName(processId, process.ProcessName), windowTitle);
+        }
+        catch { return (null, null); }
+    }
+
+    private static string? GetWindowTitle(IntPtr window)
+    {
+        try
+        {
+            var length = GetWindowTextLengthW(window);
+            if (length <= 0) return null;
+            var buffer = new StringBuilder(length + 1);
+            return GetWindowTextW(window, buffer, buffer.Capacity) > 0 ? buffer.ToString() : null;
         }
         catch { return null; }
     }
@@ -173,6 +189,8 @@ internal sealed class WindowsActivity
     private struct LastInputInfo { public uint Size; public uint Time; }
     [DllImport("user32.dll")] private static extern bool GetLastInputInfo(ref LastInputInfo info);
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowTextLengthW(IntPtr window);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowTextW(IntPtr window, StringBuilder text, int maxCount);
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
     [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr parent, EnumWindowsProc callback, IntPtr parameter);
     [DllImport("user32.dll", SetLastError = true)] private static extern IntPtr OpenInputDesktop(uint flags, bool inherit, uint desiredAccess);
