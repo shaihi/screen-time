@@ -4,12 +4,15 @@ import { DashboardBoard, type BoardPanel } from "@/app/components/dashboard-boar
 import { MetricsPanel } from "@/app/components/metrics-panel";
 import { OverlapsPanel } from "@/app/components/overlaps-panel";
 import { PagesPanel } from "@/app/components/pages-panel";
+import { UsageHero } from "@/app/components/usage-hero";
+import { UsageModeProvider } from "@/app/components/usage-mode";
 import { RangeShell } from "@/app/components/range-shell";
 import { SessionsPanel } from "@/app/components/sessions-panel";
 import { Timeline, TimelineLegend } from "@/app/components/timeline";
-import { formatDuration, formatLastSeen } from "@/lib/format";
+import { formatLastSeen } from "@/lib/format";
 import { parseRange, rangeLabels } from "@/lib/range";
 import { getSummary } from "@/lib/summary";
+
 import { agentOfflineAfterMinutes } from "@/lib/system-apps";
 
 export const dynamic = "force-dynamic";
@@ -22,13 +25,12 @@ function isOnline(lastSeenAt: string | null) {
 export default async function Home({ searchParams }: { searchParams: Promise<{ range?: string | string[] }> }) {
   const range = parseRange((await searchParams).range);
   const summary = await getSummary(range);
-  const usedSeconds = summary ? summary.activeSeconds + summary.mediaSeconds : 0;
   const online = isOnline(summary?.lastSeenAt || null);
   const timeZone = summary?.timeZone || "UTC";
   const showDate = range !== "day";
 
   const panels: BoardPanel[] = [
-    { id: "metrics", title: "Totals", wide: true, plain: true, content: <MetricsPanel summary={summary} /> },
+    { id: "metrics", title: "Real usage", wide: true, plain: true, content: <MetricsPanel summary={summary} /> },
     {
       id: "timeline",
       title: "Rhythm",
@@ -47,18 +49,18 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
     },
     { id: "apps", title: "Apps", wide: false, content: <AppsPanel summary={summary} range={range} /> },
     {
-      id: "sessions",
-      title: "Sessions",
-      wide: true,
-      content: <SessionsPanel sessions={summary?.sessions || []} timeZone={timeZone} showDate={showDate} />,
-    },
-    {
       id: "pages",
       title: "Pages",
       wide: true,
       content: (
         <PagesPanel visits={summary?.pages || []} totals={summary?.pageTotals || []} timeZone={timeZone} showDate={showDate} />
       ),
+    },
+    {
+      id: "sessions",
+      title: "Sessions",
+      wide: true,
+      content: <SessionsPanel sessions={summary?.sessions || []} timeZone={timeZone} showDate={showDate} />,
     },
     {
       id: "overlaps",
@@ -76,12 +78,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
         <div className="header-actions"><div className="live"><span /> Live · refreshes every minute</div><form action="/api/auth/logout" method="post"><button className="logout" type="submit">Sign out</button></form></div>
       </header>
 
+      <UsageModeProvider>
       <RangeShell range={range}>
       <section className="hero">
         <div>
           <p className="eyebrow">{rangeLabels[range].eyebrow} · {summary?.deviceId || "WAITING FOR DEVICE"}</p>
-          <h1>{summary ? formatDuration(usedSeconds) : "—"}</h1>
-          <p className="subtitle">meaningful screen time</p>
+          <UsageHero summary={summary} />
         </div>
         <div className="connection">
           <span className={online ? "status-dot online" : "status-dot"} />
@@ -91,6 +93,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
 
       <DashboardBoard panels={panels} />
       </RangeShell>
+      </UsageModeProvider>
       <footer>Private by design · no screenshots, keystrokes, or web addresses</footer>
     </main>
   );

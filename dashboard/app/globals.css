@@ -6,6 +6,7 @@
   --lime: #c8ff55;
   --violet: #a887ff;
   --slate: #647169;
+  --warn: #fab219;
   --background: #0b0e0c;
   /* App categories, in stacking order. Validated as a set on the panel surface (#151a17) for colour-blind separation. */
   --cat-gaming: #3987e5;
@@ -92,3 +93,11 @@ footer { text-align: center; color: #5b645e; font-size: 9px; letter-spacing: .05
 .usage-table tr.left-running td { color: var(--muted); }.usage-table tr.left-running strong { color: #aab3ad; }
 .badge { display: inline-block; margin-left: 8px; padding: 2px 6px; border: 1px solid #3a433c; border-radius: 6px; color: var(--muted); font-size: 9px; letter-spacing: .04em; vertical-align: middle; }
 .chart-tip .tip-row.sub { color: var(--muted); }
+.usage-summary { display: flex; flex-direction: column; gap: 14px; }
+.usage-bar-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }.usage-bar-row .usage-bar { flex: 1 1 260px; }
+.switch { display: inline-flex; align-items: center; gap: 9px; color: var(--muted); font-size: 11px; cursor: pointer; user-select: none; }.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch .track { width: 38px; height: 22px; border-radius: 999px; background: #262d28; border: 1px solid var(--line); display: inline-flex; align-items: center; padding: 2px; transition: background .15s; }.switch .knob { width: 16px; height: 16px; border-radius: 50%; background: #79837b; transition: transform .15s, background .15s; }
+.switch input:checked + .track { background: #4a3c10; border-color: #fab21955; }.switch input:checked + .track .knob { transform: translateX(16px); background: var(--warn); }.switch input:focus-visible + .track { box-shadow: 0 0 0 3px #fab21933; }
+.metric.warn.counted { border-color: #fab21955; }.usage-bar .seg.unattended.counted { background: repeating-linear-gradient(135deg, var(--warn) 0 6px, #d99a12 6px 12px); }
+.usage-bar { display: flex; gap: 2px; height: 12px; border-radius: 7px; overflow: hidden; background: #171c19; }.usage-bar .seg { min-width: 0; border-radius: 4px; }.usage-bar .seg.real { background: var(--lime); }.usage-bar .seg.unattended { background: var(--warn); }.usage-bar .seg.idle { background: var(--slate); opacity: .55; }
+.metric.warn { color: var(--warn); }.metric small .swatch { margin-right: 6px; vertical-align: -1px; }
