@@ -45,6 +45,8 @@ internal static class AppNames
         if (string.IsNullOrWhiteSpace(identifier)) return null;
         var value = identifier.ToLowerInvariant();
         if (value is "code" or "code.exe") return "Visual Studio Code";
+        // Firefox registers media sessions under a 16-hex-digit hash of its install path.
+        if (value.Length == 16 && value.All(Uri.IsHexDigit)) return "Firefox";
         foreach (var (needle, name) in KnownApps)
             if (value.Contains(needle)) return name;
         return null;

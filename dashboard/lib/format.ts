@@ -13,3 +13,16 @@ export function formatLastSeen(value: string | null) {
   return `${Math.floor(deltaSeconds / 3600)}h ago`;
 }
 
+
+export function formatClock(iso: string, timeZone: string) {
+  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone });
+}
+
+export function formatDay(iso: string, timeZone: string) {
+  return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone });
+}
+
+/** Like formatDuration, but shows seconds for anything under a minute. */
+export function formatShortDuration(totalSeconds: number) {
+  return totalSeconds < 60 ? `${totalSeconds}s` : formatDuration(totalSeconds);
+}

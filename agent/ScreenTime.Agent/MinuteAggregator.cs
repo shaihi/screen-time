@@ -11,9 +11,14 @@ internal sealed class MinuteAggregator
         var completed = Array.Empty<ActivitySample>();
         if (_minute is not null && currentMinute > _minute) completed = Flush().ToArray();
         _minute ??= currentMinute;
-        var key = (classification.State, classification.AppName ?? string.Empty);
-        _seconds[key] = _seconds.GetValueOrDefault(key) + seconds;
+        Add((classification.State, classification.AppName ?? string.Empty), seconds);
+        if (classification.BackgroundApp is not null) Add((ActivityState.Background, classification.BackgroundApp), seconds);
         return completed;
+    }
+
+    private void Add((ActivityState State, string App) key, int seconds)
+    {
+        _seconds[key] = _seconds.GetValueOrDefault(key) + seconds;
     }
 
     /// <summary>Completes the current minute and resets.</summary>

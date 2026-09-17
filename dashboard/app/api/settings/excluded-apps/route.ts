@@ -1,4 +1,5 @@
 import { database, ensureSchema } from "@/lib/db";
+import { parseRange } from "@/lib/range";
 
 export const runtime = "nodejs";
 
@@ -23,5 +24,6 @@ export async function POST(request: Request) {
     await sql`DELETE FROM excluded_apps WHERE app_name = ${appName}`;
   }
 
-  return Response.redirect(new URL("/", request.url), 303);
+  const range = parseRange(form.get("range"));
+  return Response.redirect(new URL(range === "day" ? "/" : `/?range=${range}`, request.url), 303);
 }

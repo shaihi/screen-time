@@ -10,7 +10,7 @@ Collected:
 
 - Device label
 - Minute timestamp and number of observed seconds
-- State: `active`, `media`, `idle`, or `locked`
+- State: `active`, `media`, `idle`, `locked`, or `background` (media playing while another app is in use; not added to totals)
 - Foreground or playing application name (for example, Google Chrome)
 
 Never collected:
@@ -58,6 +58,8 @@ From PowerShell in this repository:
 This publishes the agent, copies it to `%LOCALAPPDATA%\ScreenTimeAgent`, creates a current-user Startup shortcut, and launches the notification-tray icon. It does not request administrator elevation.
 
 Right-click the tray icon to upload immediately, pause for 30 minutes, resume, or exit. When offline, completed minute records remain queued locally and are retried later.
+
+The dashboard has **Day** (midnight until now), **Week** (since Sunday), and **Month** (since the 1st) views. Panels can be dragged by their ⠿ handle (mouse or touch) or moved with the arrow keys, and made wide or narrow with ⇔; the layout is saved in the browser. The **Sessions** panel lists when each app was used and for how long (minutes less than two minutes apart count as one session). The **Overlap** panel lists audio or video playing in one app while another app was in use — Windows focuses one window at a time, so that is the only overlap the agent can observe (agent 1.2+).
 
 In the dashboard's app breakdown, use the `×` beside a program to hide it from the list. Expand the hidden-apps section to restore it. Hiding an app affects only the breakdown; its time remains part of the overall screen-time total.
 
