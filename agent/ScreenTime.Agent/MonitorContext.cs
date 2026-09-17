@@ -4,6 +4,7 @@ namespace ScreenTime.Agent;
 
 internal sealed class MonitorContext : ApplicationContext
 {
+    private static readonly string Version = FormatVersion(typeof(MonitorContext).Assembly.GetName().Version);
     private readonly AgentConfig _config;
     private readonly WindowsActivity _activity = new();
     private readonly MinuteAggregator _aggregator = new();
@@ -26,12 +27,14 @@ internal sealed class MonitorContext : ApplicationContext
         menu.Items.Add("Pause for 30 minutes", null, (_, _) => Pause(TimeSpan.FromMinutes(30)));
         menu.Items.Add("Resume", null, (_, _) => { _pausedUntil = null; UpdateTooltip("Monitoring"); });
         menu.Items.Add(new ToolStripSeparator());
+        var versionItem = menu.Items.Add($"Version {Version}");
+        versionItem.Enabled = false;
         menu.Items.Add("Exit", null, (_, _) => ExitThread());
 
         _tray = new NotifyIcon
         {
             Icon = SystemIcons.Information,
-            Text = "Screen Time — Monitoring",
+            Text = $"Screen Time {Version} — Monitoring",
             ContextMenuStrip = menu,
             Visible = true,
         };
@@ -105,9 +108,13 @@ internal sealed class MonitorContext : ApplicationContext
 
     private void UpdateTooltip(string status)
     {
-        var text = $"Screen Time — {status}";
+        var text = $"Screen Time {Version} — {status}";
         _tray.Text = text[..Math.Min(63, text.Length)];
     }
+
+    private static string FormatVersion(Version? version) => version is null
+        ? "unknown"
+        : $"{version.Major}.{version.Minor}.{version.Build}";
 
     protected override void ExitThreadCore()
     {
