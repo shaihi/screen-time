@@ -22,6 +22,11 @@ type TotalsRow = {
 
 type MinuteRow = { epoch: number; app_name: string; seconds: number };
 
+// Neon returns untyped rows; this narrows a query's rows to the shape selected.
+async function rows<T>(query: PromiseLike<Array<Record<string, unknown>>>): Promise<T[]> {
+  return (await query) as T[];
+}
+
 const systemNamesParam = () => systemAppNames.map((name) => name.toLowerCase());
 
 // Rows that should appear as named apps. Queries using it take [deviceId, rangeStart, systemNames].
@@ -65,7 +70,7 @@ export async function getSummary(range: RangeKey): Promise<DashboardSummary | nu
   const appParams = [deviceId, bounds.start_at, systemNamesParam()];
 
   const [timelineRows, apps, foregroundRows, backgroundRows, hiddenApps] = await Promise.all([
-    sql.query(
+    rows<{ bucket: string; state: string; seconds: number }>(sql.query(
       `SELECT ${range === "day"
         ? "EXTRACT(HOUR FROM started_at AT TIME ZONE $1)::int::text"
         : "(started_at AT TIME ZONE $1)::date::text"} AS bucket,
@@ -74,29 +79,29 @@ export async function getSummary(range: RangeKey): Promise<DashboardSummary | nu
       WHERE device_id = $2 AND started_at >= $3::timestamptz
       GROUP BY 1, 2`,
       [timeZone, deviceId, bounds.start_at],
-    ) as Promise<Array<{ bucket: string; state: string; seconds: number }>>,
-    sql.query(
+    )),
+    rows<{ name: string; seconds: number }>(sql.query(
       `SELECT app_name AS name, SUM(duration_seconds)::int AS seconds
       FROM activity_segments
       WHERE state IN ('active', 'media') AND ${visibleAppFilter}
       GROUP BY 1 ORDER BY 2 DESC LIMIT ${TOP_APPS}`,
       appParams,
-    ) as Promise<Array<{ name: string; seconds: number }>>,
-    sql.query(
+    )),
+    rows<MinuteRow>(sql.query(
       `SELECT EXTRACT(EPOCH FROM started_at)::float8 AS epoch, app_name, SUM(duration_seconds)::int AS seconds
       FROM activity_segments
       WHERE state IN ('active', 'media') AND ${visibleAppFilter}
       GROUP BY 1, 2`,
       appParams,
-    ) as Promise<MinuteRow[]>,
-    sql.query(
+    )),
+    rows<MinuteRow>(sql.query(
       `SELECT EXTRACT(EPOCH FROM started_at)::float8 AS epoch, app_name, SUM(duration_seconds)::int AS seconds
       FROM activity_segments
       WHERE state = 'background' AND ${visibleAppFilter}
       GROUP BY 1, 2`,
       appParams,
-    ) as Promise<MinuteRow[]>,
-    sql`SELECT app_name FROM excluded_apps ORDER BY app_name` as Promise<Array<{ app_name: string }>>,
+    )),
+    rows<{ app_name: string }>(sql`SELECT app_name FROM excluded_apps ORDER BY app_name`),
   ]);
 
   const used = Number(totals[0].active_seconds) + Number(totals[0].media_seconds);
