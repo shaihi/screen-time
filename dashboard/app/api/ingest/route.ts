@@ -1,11 +1,10 @@
 import { z } from "zod";
 import { verifyIngestSignature } from "@/lib/auth";
 import { database, ensureSchema } from "@/lib/db";
+import { cleanPageTitle } from "@/lib/page-title";
 import { activityStates } from "@/lib/types";
 
 export const runtime = "nodejs";
-
-const MAX_PAGE_TITLE = 300;
 
 const payloadSchema = z.object({
   batchId: z.string().uuid(),
@@ -16,7 +15,7 @@ const payloadSchema = z.object({
     state: z.enum(activityStates),
     appName: z.string().trim().max(120).nullable().optional(),
     // Agent 1.3+: the browser page in front. Such samples are page detail, not extra activity.
-    pageTitle: z.string().max(2000).transform((title) => title.trim().slice(0, MAX_PAGE_TITLE)).nullable().optional(),
+    pageTitle: z.string().max(2000).transform(cleanPageTitle).nullable().optional(),
   })).min(1).max(500),
 });
 

@@ -32,6 +32,7 @@ export type DashboardSummary = {
   sessions: UsageSession[];
   /** Idle time per app that stayed in front (left running), largest first. */
   leftRunning: Array<{ name: string; seconds: number }>;
+  leftRunningSeconds: number;
   overlaps: OverlapPeriod[];
   pages: PageVisit[];
   pageTotals: PageTotal[];

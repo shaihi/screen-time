@@ -2,6 +2,7 @@ import { database, ensureSchema } from "@/lib/db";
 import { rangeStartSql, type RangeKey } from "@/lib/range";
 import { buildOverlaps, buildSessions, mergeSessionKinds, type MinuteUsage } from "@/lib/sessions";
 import { systemAppNames } from "@/lib/system-apps";
+import { cleanPageTitle } from "@/lib/page-title";
 import { buildPageSessions, totalsByPage } from "@/lib/pages";
 import { buildTimelinePoints, type TimelineRow } from "@/lib/timeline";
 import type { DashboardSummary } from "@/lib/types";
@@ -131,7 +132,11 @@ export async function getSummary(range: RangeKey): Promise<DashboardSummary | nu
   const used = Number(totals[0].active_seconds) + Number(totals[0].media_seconds);
   const foreground = foregroundRows.map(toMinuteUsage);
   const leftRunning = buildSessions(idleRows.map(toMinuteUsage));
-  const pageVisits = buildPageSessions(pageRows.map((row) => ({ ...toMinuteUsage(row), title: row.page_title })));
+  // Titles stored by agent 1.3 can still carry the browser suffix, so tidy them again here.
+  const pageVisits = buildPageSessions(pageRows.flatMap((row) => {
+    const title = cleanPageTitle(row.page_title);
+    return title ? [{ ...toMinuteUsage(row), title }] : [];
+  }));
   return {
     range,
     timeZone,
@@ -146,6 +151,7 @@ export async function getSummary(range: RangeKey): Promise<DashboardSummary | nu
     hiddenApps: hiddenApps.map((app) => app.app_name),
     sessions: mergeSessionKinds(buildSessions(foreground), leftRunning).slice(0, MAX_SESSIONS),
     leftRunning: totalByApp(leftRunning).slice(0, TOP_APPS),
+    leftRunningSeconds: leftRunning.reduce((sum, session) => sum + session.seconds, 0),
     pages: pageVisits.slice(0, MAX_PAGE_VISITS),
     pageTotals: totalsByPage(pageVisits).slice(0, MAX_PAGE_TOTALS),
     overlaps: buildOverlaps(foreground, backgroundRows.map(toMinuteUsage)).slice(0, MAX_OVERLAPS),
