@@ -9,6 +9,50 @@ $projectPath = Join-Path $PSScriptRoot "ScreenTime.Agent\ScreenTime.Agent.csproj
 $publishPath = Join-Path $PSScriptRoot "ScreenTime.Agent\publish"
 $installPath = Join-Path $env:LOCALAPPDATA "ScreenTimeAgent"
 $configPath = Join-Path $installPath "appsettings.json"
+$installedExe = Join-Path $installPath "ScreenTime.Agent.exe"
+
+function Stop-AgentProcess {
+    $deadline = [DateTime]::UtcNow.AddSeconds(15)
+    do {
+        $running = Get-Process -Name "ScreenTime.Agent" -ErrorAction SilentlyContinue
+        if (-not $running) { return }
+        $running | Stop-Process -Force
+        Start-Sleep -Milliseconds 250
+    } while ([DateTime]::UtcNow -lt $deadline)
+    throw "ScreenTime.Agent did not stop within 15 seconds."
+}
+
+function Wait-FileUnlocked([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+    $deadline = [DateTime]::UtcNow.AddSeconds(15)
+    do {
+        try {
+            $stream = [System.IO.File]::Open(
+                $Path,
+                [System.IO.FileMode]::Open,
+                [System.IO.FileAccess]::ReadWrite,
+                [System.IO.FileShare]::None)
+            $stream.Dispose()
+            return
+        } catch [System.IO.IOException] {
+            Start-Sleep -Milliseconds 250
+        }
+    } while ([DateTime]::UtcNow -lt $deadline)
+    throw "The installed agent executable remained locked for 15 seconds: $Path"
+}
+
+function Install-VerifiedFile([string]$Source, [string]$Destination) {
+    $staged = "$Destination.new"
+    Copy-Item -LiteralPath $Source -Destination $staged -Force
+    $expectedHash = (Get-FileHash -LiteralPath $Source -Algorithm SHA256).Hash
+    if ((Get-FileHash -LiteralPath $staged -Algorithm SHA256).Hash -ne $expectedHash) {
+        throw "The staged agent executable failed SHA-256 verification."
+    }
+    Move-Item -LiteralPath $staged -Destination $Destination -Force
+    if ((Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash -ne $expectedHash) {
+        throw "The installed agent executable failed SHA-256 verification."
+    }
+}
 
 # Re-installs keep the existing settings unless new values are passed.
 $existing = $null
@@ -41,15 +85,11 @@ if ($dotnetCommand) {
 & $dotnetPath publish $projectPath -c Release -r win-x64 --self-contained true -o $publishPath
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE." }
 
-# The running agent locks its executable; stop it before copying the new build.
-$running = Get-Process -Name "ScreenTime.Agent" -ErrorAction SilentlyContinue
-if ($running) {
-    $running | Stop-Process -Force
-    $running | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
-}
-
+# The running agent locks its executable; stop it and wait for Windows to release the file.
+Stop-AgentProcess
 New-Item -ItemType Directory -Path $installPath -Force | Out-Null
-Copy-Item (Join-Path $publishPath "ScreenTime.Agent.exe") $installPath -Force
+Wait-FileUnlocked $installedExe
+Install-VerifiedFile (Join-Path $publishPath "ScreenTime.Agent.exe") $installedExe
 
 $config = [ordered]@{
     ApiUrl = $ApiUrl
@@ -66,10 +106,17 @@ $startup = [Environment]::GetFolderPath("Startup")
 $shortcutPath = Join-Path $startup "Screen Time Agent.lnk"
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($shortcutPath)
-$shortcut.TargetPath = Join-Path $installPath "ScreenTime.Agent.exe"
+$shortcut.TargetPath = $installedExe
 $shortcut.WorkingDirectory = $installPath
 $shortcut.Description = "Screen Time monitoring agent"
 $shortcut.Save()
 
-Start-Process -FilePath (Join-Path $installPath "ScreenTime.Agent.exe") -WindowStyle Hidden
+$started = Start-Process -FilePath $installedExe -WindowStyle Hidden -PassThru
+Start-Sleep -Seconds 2
+$started.Refresh()
+if ($started.HasExited) { throw "The installed agent exited immediately with code $($started.ExitCode)." }
+$installedProcesses = @(Get-Process -Name "ScreenTime.Agent" -ErrorAction SilentlyContinue | Where-Object Path -EQ $installedExe)
+if ($installedProcesses.Count -ne 1) {
+    throw "Expected exactly one installed ScreenTime.Agent process; found $($installedProcesses.Count)."
+}
 Write-Host "Installed. The agent is running in the notification tray and will start at sign-in."
