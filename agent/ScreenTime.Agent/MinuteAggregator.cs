@@ -4,6 +4,7 @@ internal sealed class MinuteAggregator
 {
     private DateTimeOffset? _minute;
     private readonly Dictionary<(ActivityState State, string App), int> _seconds = new();
+    private readonly Dictionary<(string App, string Title), int> _pages = new();
 
     public IReadOnlyList<ActivitySample> Observe(DateTimeOffset observedAt, Classification classification, int seconds)
     {
@@ -13,6 +14,13 @@ internal sealed class MinuteAggregator
         _minute ??= currentMinute;
         Add((classification.State, classification.AppName ?? string.Empty), seconds);
         if (classification.BackgroundApp is not null) Add((ActivityState.Background, classification.BackgroundApp), seconds);
+        if (classification.State == ActivityState.Active &&
+            !string.IsNullOrEmpty(classification.AppName) &&
+            !string.IsNullOrEmpty(classification.PageTitle))
+        {
+            var page = (classification.AppName, classification.PageTitle);
+            _pages[page] = _pages.GetValueOrDefault(page) + seconds;
+        }
         return completed;
     }
 
@@ -26,6 +34,7 @@ internal sealed class MinuteAggregator
     {
         var samples = Snapshot();
         _seconds.Clear();
+        _pages.Clear();
         _minute = null;
         return samples;
     }
@@ -36,9 +45,12 @@ internal sealed class MinuteAggregator
     /// </summary>
     public IReadOnlyList<ActivitySample> Snapshot()
     {
-        if (_minute is null || _seconds.Count == 0) return Array.Empty<ActivitySample>();
-        return _seconds.Select(item => new ActivitySample(
+        if (_minute is null || (_seconds.Count == 0 && _pages.Count == 0)) return Array.Empty<ActivitySample>();
+        var activity = _seconds.Select(item => new ActivitySample(
             _minute.Value, Math.Min(60, item.Value), item.Key.State.ToString().ToLowerInvariant(),
-            string.IsNullOrEmpty(item.Key.App) ? null : item.Key.App)).ToArray();
+            string.IsNullOrEmpty(item.Key.App) ? null : item.Key.App));
+        var pages = _pages.Select(item => new ActivitySample(
+            _minute.Value, Math.Min(60, item.Value), "active", item.Key.App, item.Key.Title));
+        return activity.Concat(pages).ToArray();
     }
 }

@@ -68,4 +68,52 @@ public class MinuteAggregatorTests
         Assert.Contains(new ActivitySample(Minute, 2, "background", "Spotify"), samples);
         Assert.Equal(2, samples.Count);
     }
+
+    [Fact]
+    public void Active_browser_title_is_recorded_in_addition_to_normal_activity()
+    {
+        var aggregator = new MinuteAggregator();
+        aggregator.Observe(Minute, new Classification(ActivityState.Active, "Google Chrome", PageTitle: "Roblox"), 2);
+
+        var samples = aggregator.Snapshot();
+        Assert.Contains(new ActivitySample(Minute, 2, "active", "Google Chrome"), samples);
+        Assert.Contains(new ActivitySample(Minute, 2, "active", "Google Chrome", "Roblox"), samples);
+        Assert.Equal(2, samples.Count);
+    }
+
+    [Fact]
+    public void Two_page_titles_keep_their_own_durations()
+    {
+        var aggregator = new MinuteAggregator();
+        aggregator.Observe(Minute, new Classification(ActivityState.Active, "Microsoft Edge", PageTitle: "First"), 2);
+        aggregator.Observe(Minute.AddSeconds(2), new Classification(ActivityState.Active, "Microsoft Edge", PageTitle: "Second"), 2);
+        aggregator.Observe(Minute.AddSeconds(4), new Classification(ActivityState.Active, "Microsoft Edge", PageTitle: "Second"), 2);
+
+        var pages = aggregator.Snapshot().Where(sample => sample.PageTitle is not null).ToArray();
+        Assert.Contains(new ActivitySample(Minute, 2, "active", "Microsoft Edge", "First"), pages);
+        Assert.Contains(new ActivitySample(Minute, 4, "active", "Microsoft Edge", "Second"), pages);
+        Assert.Equal(2, pages.Length);
+    }
+
+    [Fact]
+    public void Idle_state_never_records_a_page_title()
+    {
+        var aggregator = new MinuteAggregator();
+        aggregator.Observe(Minute, new Classification(ActivityState.Idle, "Google Chrome", PageTitle: "Ignored"), 2);
+
+        Assert.DoesNotContain(aggregator.Snapshot(), sample => sample.PageTitle is not null);
+    }
+
+    [Fact]
+    public void Flush_clears_page_titles()
+    {
+        var aggregator = new MinuteAggregator();
+        aggregator.Observe(Minute, new Classification(ActivityState.Active, "Google Chrome", PageTitle: "Old page"), 2);
+
+        Assert.Equal(2, aggregator.Flush().Count);
+        Assert.Empty(aggregator.Snapshot());
+
+        aggregator.Observe(Minute.AddMinutes(1), new Classification(ActivityState.Active, "Google Chrome"), 2);
+        Assert.DoesNotContain(aggregator.Snapshot(), sample => sample.PageTitle is not null);
+    }
 }

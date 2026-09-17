@@ -81,6 +81,8 @@ Every two seconds, in priority order:
 
 The fine observations never leave the device. Each completed UTC minute is reduced to one or more state/app totals, accurate to the two-second observation interval. Browser video normally advertises a Windows media session, so Netflix and YouTube continue to count while the viewer is not touching the mouse or keyboard.
 
+Agent 1.3 also reports the foreground browser tab title—not its address—while the browser is actively used. Set `"CollectPageTitles": false` in `appsettings.json` to turn this off.
+
 ## Local dashboard development
 
 ```powershell
