@@ -47,6 +47,8 @@ The dashboard uses a password-only sign-in form over HTTPS and stores only an HM
 
 Requirements for building: Windows 10/11 and the .NET 8 SDK. The published executable is self-contained, so the monitored account does not need .NET after installation.
 
+For subsequent updates, run `Set-ExecutionPolicy -Scope Process Bypass -Force` followed by `.\agent\update.ps1`. The updater requires a clean worktree, fast-forwards `main`, runs the agent tests and release build, installs with executable-lock and hash verification, then confirms exactly one agent process is running.
+
 From PowerShell in this repository:
 
 ```powershell
