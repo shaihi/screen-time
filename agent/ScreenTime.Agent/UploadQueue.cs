@@ -22,19 +22,38 @@ internal sealed class UploadQueue
         LoadPending();
     }
 
+    private const int MaxBatchSize = 500;
+    private readonly object _pendingLock = new();
+
     public void Enqueue(IEnumerable<ActivitySample> samples)
     {
-        _pending.AddRange(samples);
-        SavePending();
+        lock (_pendingLock)
+        {
+            _pending.AddRange(samples);
+            SavePending();
+        }
     }
 
-    public async Task<int> SendAsync()
+    /// <summary>Uploads batches until the queue is empty. Returns the number of records sent.</summary>
+    public async Task<int> SendAllAsync(CancellationToken cancellationToken = default)
     {
-        await _gate.WaitAsync();
+        var total = 0;
+        while (true)
+        {
+            var sent = await SendAsync(cancellationToken);
+            total += sent;
+            if (sent < MaxBatchSize) return total;
+        }
+    }
+
+    private async Task<int> SendAsync(CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken);
         try
         {
-            if (_pending.Count == 0) return 0;
-            var toSend = _pending.Take(500).ToArray();
+            ActivitySample[] toSend;
+            lock (_pendingLock) toSend = _pending.Take(MaxBatchSize).ToArray();
+            if (toSend.Length == 0) return 0;
             var body = JsonSerializer.Serialize(new UploadBatch(Guid.NewGuid(), _config.DeviceId, toSend), JsonOptions.Default);
             var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
             var signature = Convert.ToHexString(HMACSHA256.HashData(
@@ -44,12 +63,15 @@ internal sealed class UploadQueue
             request.Content = new StringContent(body, Encoding.UTF8, "application/json");
             request.Headers.Add("x-screen-time-timestamp", timestamp);
             request.Headers.Add("x-screen-time-signature", signature);
-            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("ScreenTime-Agent", "1.0"));
-            using var response = await _http.SendAsync(request);
+            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("ScreenTime-Agent", "1.1"));
+            using var response = await _http.SendAsync(request, cancellationToken);
             response.EnsureSuccessStatusCode();
 
-            _pending.RemoveRange(0, toSend.Length);
-            SavePending();
+            lock (_pendingLock)
+            {
+                _pending.RemoveRange(0, toSend.Length);
+                SavePending();
+            }
             return toSend.Length;
         }
         finally { _gate.Release(); }

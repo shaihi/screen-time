@@ -29,4 +29,5 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
+      - run: dotnet test agent/ScreenTime.Agent.Tests/ScreenTime.Agent.Tests.csproj
       - run: dotnet build agent/ScreenTime.Agent/ScreenTime.Agent.csproj -c Release

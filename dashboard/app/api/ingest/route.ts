@@ -38,6 +38,8 @@ export async function POST(request: Request) {
 
   await ensureSchema();
   const sql = database();
+  // Agents send running totals for the unfinished minute and again once it completes,
+  // so keep the largest value per minute/state/app instead of adding them up.
   const { batchId, deviceId, samples } = parsed.data;
   await sql`
     INSERT INTO activity_segments (batch_id, device_id, started_at, duration_seconds, state, app_name)
@@ -45,12 +47,15 @@ export async function POST(request: Request) {
       ${batchId}::uuid,
       ${deviceId},
       x."startedAt"::timestamptz,
-      x."durationSeconds"::integer,
+      MAX(x."durationSeconds")::integer,
       x.state,
       NULLIF(x."appName", '')
     FROM jsonb_to_recordset(${JSON.stringify(samples)}::jsonb)
       AS x("startedAt" text, "durationSeconds" integer, state text, "appName" text)
-    ON CONFLICT DO NOTHING
+    GROUP BY x."startedAt"::timestamptz, x.state, NULLIF(x."appName", '')
+    ON CONFLICT (device_id, started_at, state, (COALESCE(app_name, ''))) DO UPDATE
+      SET duration_seconds = GREATEST(activity_segments.duration_seconds, EXCLUDED.duration_seconds),
+        received_at = NOW()
   `;
 
   return Response.json({ accepted: samples.length });

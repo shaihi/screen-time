@@ -7,8 +7,8 @@ internal sealed record AgentConfig(
     string IngestSecret,
     string DeviceId,
     int IdleThresholdSeconds = 120,
-    int SampleIntervalSeconds = 5,
-    int UploadIntervalMinutes = 5)
+    int SampleIntervalSeconds = 2,
+    int UploadIntervalMinutes = 1)
 {
     public static AgentConfig Load()
     {
