@@ -7,7 +7,10 @@ export function proxy(request: NextRequest) {
 
   const expectedUser = process.env.DASHBOARD_USER;
   const expectedPassword = process.env.DASHBOARD_PASSWORD;
-  if (!expectedUser || !expectedPassword) return NextResponse.next();
+  if (!expectedUser || !expectedPassword) {
+    if (!process.env.VERCEL) return NextResponse.next();
+    return new NextResponse("Dashboard authentication is not configured", { status: 503 });
+  }
 
   const authorization = request.headers.get("authorization");
   if (authorization?.startsWith("Basic ")) {
@@ -23,4 +26,3 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };
-

@@ -60,6 +60,8 @@ This publishes the agent, copies it to `%LOCALAPPDATA%\ScreenTimeAgent`, creates
 
 Right-click the tray icon to upload immediately, pause for 30 minutes, resume, or exit. When offline, completed minute records remain queued locally and are retried later.
 
+In the dashboard's app breakdown, use the `×` beside a program to hide it from the list. Expand the hidden-apps section to restore it. Hiding an app affects only the breakdown; its time remains part of the overall screen-time total.
+
 To remove the agent and its local queued data:
 
 ```powershell
@@ -93,4 +95,3 @@ Without `DATABASE_URL`, the dashboard renders its empty state. For a complete lo
 - The agent is session-specific by design. A Windows service cannot reliably query foreground windows or per-user media sessions.
 - A browser may fail to expose playback if media controls are disabled. Such playback will become `idle` after the input threshold; this is a known limitation of the privacy-preserving, no-screen-capture approach.
 - Device clocks must be reasonably correct because signed requests expire after ten minutes.
-
