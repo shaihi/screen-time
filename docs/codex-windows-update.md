@@ -1,4 +1,4 @@
-# Codex: build, test, and install agent 1.1 on this Windows PC
+# Codex: build, test, and install the agent update on this Windows PC
 
 Follow these steps in order, in PowerShell, from the repository root. Stop and report if any step fails. Do not edit the source code unless a build error below says to.
 
@@ -9,12 +9,13 @@ Follow these steps in order, in PowerShell, from the repository root. Stop and r
 - Tray **Send now** also sends the minute still in progress.
 - Shutdown and sign-out save the current minute and try a quick upload. Anything not sent is kept and uploads on the next start.
 - Checks the screen every 2 seconds and uploads every minute.
+- Agent 1.2: records audio/video playing in one app while another app is in use (dashboard "Overlap" panel). The dashboard must already be deployed from `main` before installing 1.2; older dashboards reject this data.
 
 ## 1. Get the code
 
 ```powershell
 git fetch origin
-git checkout fix/app-attribution
+git checkout main
 git pull
 ```
 
@@ -52,7 +53,7 @@ Expected: `Build succeeded` with 0 errors. The Windows-specific code was not com
 
 - Fix only the reported line, in `agent\ScreenTime.Agent\WindowsActivity.cs` or `MonitorContext.cs`, keeping the same behaviour.
 - Re-run steps 3 and 4.
-- Commit the fix to the `fix/app-attribution` branch and push it.
+- Commit the fix to a new branch `fix/windows-build`, push it, and report the branch name (do not push to `main`).
 
 ## 5. Install (replaces the running agent)
 
@@ -78,9 +79,9 @@ Expected: one running process started just now from `%LOCALAPPDATA%\ScreenTimeAg
 
 Then ask the user to:
 
-1. Open Roblox (Store version) for about 30 seconds.
+1. Play a video or music in one app (e.g. YouTube in the browser) and, while it plays, use another app (e.g. Roblox) for about a minute.
 2. Right-click the Screen Time tray icon and choose **Send now**. The tooltip should say `Sent N minute records`.
-3. Refresh the dashboard. **Roblox** should appear under "Where time went", and `ApplicationFrameHost` / `explorer` should not.
+3. Refresh the dashboard. The **Sessions** panel should list both apps with times, and **Overlap** should list the media app next to the other app.
 
 ## 7. Report back
 
@@ -94,6 +95,6 @@ Report:
 ## Rollback
 
 ```powershell
-git checkout main
+git checkout <previous commit hash from `git log`>
 .\agent\install.ps1
 ```

@@ -63,7 +63,7 @@ internal sealed class UploadQueue
             request.Content = new StringContent(body, Encoding.UTF8, "application/json");
             request.Headers.Add("x-screen-time-timestamp", timestamp);
             request.Headers.Add("x-screen-time-signature", signature);
-            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("ScreenTime-Agent", "1.1"));
+            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("ScreenTime-Agent", "1.2"));
             using var response = await _http.SendAsync(request, cancellationToken);
             response.EnsureSuccessStatusCode();
 

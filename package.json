@@ -6,6 +6,7 @@
     "dev": "pnpm --dir dashboard dev",
     "build": "pnpm --dir dashboard build",
     "lint": "pnpm --dir dashboard lint",
-    "typecheck": "pnpm --dir dashboard typecheck"
+    "typecheck": "pnpm --dir dashboard typecheck",
+    "test": "pnpm --dir dashboard test"
   }
 }

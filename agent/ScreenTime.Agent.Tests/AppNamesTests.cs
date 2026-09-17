@@ -27,6 +27,7 @@ public class AppNamesTests
     [InlineData("chrome", "Google Chrome")]
     [InlineData("Code", "Visual Studio Code")]
     [InlineData("Chrome", "Google Chrome")]
+    [InlineData("308046B0AF4A39CB", "Firefox")]
     public void Known_apps_get_curated_names(string identifier, string expected) =>
         Assert.Equal(expected, AppNames.Known(identifier));
 

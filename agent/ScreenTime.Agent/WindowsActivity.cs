@@ -20,8 +20,9 @@ internal sealed class WindowsActivity
     {
         if (IsWorkstationLocked()) return new(ActivityState.Locked, null);
         var foregroundApp = GetForegroundApp();
-        if (GetIdleSeconds() < idleThresholdSeconds) return new(ActivityState.Active, foregroundApp);
         var mediaApp = await GetPlayingMediaAppAsync();
+        if (GetIdleSeconds() < idleThresholdSeconds)
+            return new(ActivityState.Active, foregroundApp, mediaApp != foregroundApp ? mediaApp : null);
         return mediaApp is not null ? new(ActivityState.Media, mediaApp) : new(ActivityState.Idle, foregroundApp);
     }
 

@@ -55,4 +55,17 @@ public class MinuteAggregatorTests
         for (var i = 0; i < 40; i++) aggregator.Observe(Minute, Roblox, 2);
         Assert.Equal(60, Assert.Single(aggregator.Snapshot()).DurationSeconds);
     }
+
+    [Fact]
+    public void Background_media_is_recorded_alongside_the_foreground_app()
+    {
+        var aggregator = new MinuteAggregator();
+        aggregator.Observe(Minute, new Classification(ActivityState.Active, "Roblox", "Spotify"), 2);
+        aggregator.Observe(Minute.AddSeconds(2), Roblox, 2);
+
+        var samples = aggregator.Snapshot();
+        Assert.Contains(new ActivitySample(Minute, 4, "active", "Roblox"), samples);
+        Assert.Contains(new ActivitySample(Minute, 2, "background", "Spotify"), samples);
+        Assert.Equal(2, samples.Count);
+    }
 }
