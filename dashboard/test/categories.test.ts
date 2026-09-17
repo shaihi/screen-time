@@ -27,11 +27,15 @@ test("day points split each hour by app, grouped by category, and keep idle apar
     { bucket: "9", state: "media", app: "Roblox", seconds: 10 },
     { bucket: "9", state: "active", app: null, seconds: 5 },
     { bucket: "9", state: "idle", app: null, seconds: 30 },
+    { bucket: "9", state: "idle", app: "Roblox", seconds: 200 },
+    { bucket: "9", state: "idle", app: "ChatGPT", seconds: 20 },
     { bucket: "9", state: "locked", app: null, seconds: 99 },
     { bucket: "30", state: "active", app: "Roblox", seconds: 99 },
   ]);
   assert.equal(points.length, 24);
-  assert.equal(points[9].idle, 30);
+  assert.equal(points[9].idle, 250);
+  assert.deepEqual(points[9].idleApps, [{ app: "Roblox", seconds: 200 }, { app: "ChatGPT", seconds: 20 }]);
+  assert.deepEqual(points[10].idleApps, []);
   assert.deepEqual(points[9].segments, [
     { app: "Roblox", category: "gaming", seconds: 60 },
     { app: "Google Chrome", category: "web", seconds: 100 },

@@ -64,8 +64,11 @@ export function Timeline({ points, label }: { points: TimelinePoint[]; label: st
                 <div className={`chart-tip ${edge}`} role="status" style={{ bottom: `calc(${(tip.top / max) * 100}% + 8px)` }}>
                   <span className="tip-when">{point.title}</span>
                   <strong>{tip.name}</strong>
+                  {tip.leftRunning.map((item) => (
+                    <span className="tip-row sub" key={item.app}>{item.app} left running<b>{formatShortDuration(item.seconds)}</b></span>
+                  ))}
                   <span className="tip-row">
-                    {tip.category ? <><i className={`swatch cat-${tip.category}`} />{categoryLabels[tip.category]}</> : "Not in use"}
+                    {tip.category ? <><i className={`swatch cat-${tip.category}`} />{categoryLabels[tip.category]}</> : "No input, total"}
                     <b>{formatShortDuration(tip.seconds)}</b>
                   </span>
                 </div>
@@ -81,11 +84,11 @@ export function Timeline({ points, label }: { points: TimelinePoint[]; label: st
 
 // `top` is the seconds stacked up to the top of the hovered block, so the tooltip sits just above it.
 function tooltipFor(point: TimelinePoint, segment: number | "idle") {
-  if (segment === "idle") return { name: "Idle", category: null, seconds: point.idle, top: point.idle };
+  if (segment === "idle") return { name: "Idle", category: null, seconds: point.idle, top: point.idle, leftRunning: point.idleApps.slice(0, 4) };
   const found = point.segments[segment];
   if (!found) return null;
   const top = point.idle + point.segments.slice(0, segment + 1).reduce((sum, item) => sum + item.seconds, 0);
-  return { name: found.app, category: found.category, seconds: found.seconds, top };
+  return { name: found.app, category: found.category, seconds: found.seconds, top, leftRunning: [] };
 }
 
 export function TimelineLegend({ points }: { points: TimelinePoint[] }) {

@@ -1,6 +1,6 @@
 import type { RangeKey } from "@/lib/range";
 import type { PageTotal, PageVisit } from "@/lib/pages";
-import type { AppSession, OverlapPeriod } from "@/lib/sessions";
+import type { OverlapPeriod, UsageSession } from "@/lib/sessions";
 import type { TimelinePoint } from "@/lib/timeline";
 
 export type { TimelinePoint };
@@ -29,7 +29,9 @@ export type DashboardSummary = {
   timeline: TimelinePoint[];
   apps: Array<{ name: string; seconds: number; percent: number }>;
   hiddenApps: string[];
-  sessions: AppSession[];
+  sessions: UsageSession[];
+  /** Idle time per app that stayed in front (left running), largest first. */
+  leftRunning: Array<{ name: string; seconds: number }>;
   overlaps: OverlapPeriod[];
   pages: PageVisit[];
   pageTotals: PageTotal[];
