@@ -41,7 +41,7 @@ Use this only on a computer you own or administer, with the knowledge of the per
 4. Deploy. The schema is created on first dashboard/API access.
 5. Verify `https://YOUR-PROJECT.vercel.app/api/health` returns `{"ok":true,...}`.
 
-The dashboard uses HTTP Basic authentication over HTTPS. The ingest endpoint uses an HMAC-SHA256 signature and rejects requests whose timestamps are more than ten minutes from the server clock.
+The dashboard uses a normal sign-in form over HTTPS and stores only an HMAC-signed, HTTP-only session cookie in the browser. The ingest endpoint uses a separate HMAC-SHA256 signature and rejects requests whose timestamps are more than ten minutes from the server clock.
 
 ## Install the Windows agent
 

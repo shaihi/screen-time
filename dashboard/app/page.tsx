@@ -93,7 +93,7 @@ export default async function Home() {
       <AutoRefresh />
       <header>
         <div className="brand"><span className="brand-mark" /> Screen Time</div>
-        <div className="live"><span /> Live · refreshes every minute</div>
+        <div className="header-actions"><div className="live"><span /> Live · refreshes every minute</div><form action="/api/auth/logout" method="post"><button className="logout" type="submit">Sign out</button></form></div>
       </header>
 
       <section className="hero">

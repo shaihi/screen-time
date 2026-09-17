@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sessionCookieName, verifySessionToken } from "@/lib/session";
 
-export function proxy(request: NextRequest) {
-  if (request.nextUrl.pathname.startsWith("/api/ingest") || request.nextUrl.pathname.startsWith("/api/health")) {
+export async function proxy(request: NextRequest) {
+  if (
+    request.nextUrl.pathname === "/login" ||
+    request.nextUrl.pathname.startsWith("/api/auth/login") ||
+    request.nextUrl.pathname.startsWith("/api/ingest") ||
+    request.nextUrl.pathname.startsWith("/api/health")
+  ) {
     return NextResponse.next();
   }
 
@@ -12,17 +18,11 @@ export function proxy(request: NextRequest) {
     return new NextResponse("Dashboard authentication is not configured", { status: 503 });
   }
 
-  const authorization = request.headers.get("authorization");
-  if (authorization?.startsWith("Basic ")) {
-    try {
-      const [user, password] = atob(authorization.slice(6)).split(":", 2);
-      if (user === expectedUser && password === expectedPassword) return NextResponse.next();
-    } catch { /* malformed credentials */ }
-  }
-  return new NextResponse("Authentication required", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="Private screen-time dashboard"' },
-  });
+  const token = request.cookies.get(sessionCookieName)?.value;
+  if (await verifySessionToken(token, expectedPassword)) return NextResponse.next();
+
+  const loginUrl = new URL("/login", request.url);
+  return NextResponse.redirect(loginUrl);
 }
 
 export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };
