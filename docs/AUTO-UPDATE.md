@@ -88,6 +88,20 @@ Verified live:
    `agent/ScreenTime.Agent.Tests/`. Do not write a test that hits the real
    GitHub URL.
 
+## Follow-up (post-#12 review)
+
+`UpdateChecker.StartInstallAsync` creates
+`%TEMP%\ScreenTimeAgent-update-<guid>\` (zip + extracted package) but never
+deletes it. `install-release.ps1` is started from inside that folder and the
+agent's own process gets killed mid-install, so the cleanup can't happen
+before handoff and can't happen in the agent's own `finally` either. Fix by
+having `install-release.ps1` itself remove its own parent temp directory as
+its last step, after it has finished copying `ScreenTime.Agent.exe` out of
+it and no longer needs anything there (`Remove-Item $PSScriptRoot\.. -Recurse
+-Force` guarded to only fire when `$PSScriptRoot` is actually under
+`%TEMP%\ScreenTimeAgent-update-*`, so a normal manual run from a
+downloaded-and-extracted release zip elsewhere is never touched).
+
 ## Explicitly out of scope here
 
 - Delta updates, rollback, staged/percentage rollouts.
