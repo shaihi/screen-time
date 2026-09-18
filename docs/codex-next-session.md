@@ -11,6 +11,8 @@ Read this file before changing or reinstalling Screen Time on this PC.
 - Installed files and preserved settings are under `%LOCALAPPDATA%\ScreenTimeAgent`.
 - `CollectPageTitles` is enabled. It collects only the foreground browser window title while active—never URLs, page content, or keystrokes.
 - PR #9 (`feat/agent-version-display`) was merged and installed on 2026-09-18.
+- Agent release `agent-v1.4.0` was published on 2026-09-18 with a ZIP, SHA-256 file, and manifest. The ZIP installer was verified in an isolated clean install and the production agent was restored afterward.
+- The repository is private, so the planned unauthenticated `releases/latest/download/manifest.json` auto-update URL returns `404`. Do not implement the updater against that URL until releases are public or a secure authentication design exists; never embed a personal GitHub token.
 
 ## Deterministic update command
 

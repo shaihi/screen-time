@@ -43,6 +43,12 @@ should poll `https://github.com/shaihi/screen-time/releases/latest/download/mani
 (a stable URL GitHub always redirects to the newest release) — not yet
 implemented, that's the next piece of work, sequenced after this.
 
+**Private-repository caveat verified on Windows:** the browser-style stable URL
+above returns `404` for this private repository, even though the release and its
+assets exist. Before implementing the auto-updater, either publish agent releases
+from a public repository or design an authenticated release API flow. Never embed
+a personal GitHub token in the agent.
+
 ## Not done yet, on purpose
 
 - **Auto-update checker in the tray app** — will poll the GitHub Release
