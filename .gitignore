@@ -13,6 +13,7 @@ obj/
 !.env.example
 agent/ScreenTime.Agent/appsettings.json
 agent/ScreenTime.Agent/publish/
+agent/dist/
 *.log
 *.tsbuildinfo
 .DS_Store

@@ -1,0 +1,55 @@
+name: agent-release
+
+on:
+  push:
+    tags:
+      - "agent-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Test
+        run: dotnet test agent/ScreenTime.Agent.Tests/ScreenTime.Agent.Tests.csproj -c Release
+
+      - name: Read version
+        id: version
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag -replace '^agent-v', ''
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Package
+        run: .\agent\package.ps1 -Version "${{ steps.version.outputs.version }}"
+        shell: pwsh
+
+      - name: Publish manifest
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $hash = Get-Content "agent/dist/ScreenTimeAgent-$version.zip.sha256" -Raw
+          $manifest = @{
+            version = $version
+            url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/ScreenTimeAgent-$version.zip"
+            sha256 = $hash.Trim()
+          } | ConvertTo-Json
+          Set-Content -Path agent/dist/manifest.json -Value $manifest -Encoding UTF8
+        shell: pwsh
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            agent/dist/ScreenTimeAgent-${{ steps.version.outputs.version }}.zip
+            agent/dist/ScreenTimeAgent-${{ steps.version.outputs.version }}.zip.sha256
+            agent/dist/manifest.json
