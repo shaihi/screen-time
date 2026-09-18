@@ -55,21 +55,33 @@ Verified live:
 
 3. **Install flow, on click**:
    - Download `manifest.url` to a temp path.
-   - Verify SHA-256 against `manifest.sha256` — reuse the exact hashing
-     approach already in `agent/install-release.ps1`'s
-     `Install-VerifiedFile`. Abort and show an error balloon on mismatch.
-   - Extract the zip, locate `ScreenTime.Agent.exe` inside it.
+   - Verify SHA-256 of the downloaded zip against `manifest.sha256` in C#
+     **before** doing anything else — this is the only place the published
+     hash is actually checked. Abort and show an error balloon on mismatch.
+     (`install-release.ps1`'s `Install-VerifiedFile` only compares its own
+     staged copy against its own source file — a copy-corruption check, not
+     a check against the manifest hash. It does not re-verify what you
+     already verified in C#, so don't skip the step above.)
+   - Extract the zip to a fresh temp directory, locate `ScreenTime.Agent.exe`
+     inside it, and **delete the temp directory after the script below
+     starts** (nothing currently cleans it up).
    - Do **not** reimplement the stop/wait-for-unlock/swap/restart sequence
-     in C#. Shell out to `install-release.ps1` from the extracted zip
-     (`Process.Start("powershell.exe", "-ExecutionPolicy Bypass -File
-     install-release.ps1 -ApiUrl ... -IngestSecret ... -DeviceId ...")`,
-     passing the values already in the running `AgentConfig` so the user
-     isn't prompted again) — that script already stops the process, waits
-     for the file lock, verifies the hash a second time, updates the
-     shortcut, and restarts exactly one instance. This keeps one tested
-     code path instead of two.
+     in C#. Shell out to `install-release.ps1` **using its absolute path**
+     from the extracted zip, with `WorkingDirectory` set to that same
+     extracted folder — the agent's own working directory is
+     `%LOCALAPPDATA%\ScreenTimeAgent`, not the temp extract, so a relative
+     path will fail
+     (`Process.Start("powershell.exe", "-NoProfile -WindowStyle Hidden
+     -ExecutionPolicy Bypass -File <absolute path> -ApiUrl ... -IngestSecret
+     ... -DeviceId ...")`, passing the values already in the running
+     `AgentConfig` so the user isn't prompted again). That script stops the
+     process, waits for the file lock, re-copies and hash-verifies its own
+     copy, updates the shortcut, and restarts exactly one instance. Have it
+     write to a log file (`Start-Transcript`) since a `throw` after the
+     agent process is killed has nowhere to surface.
    - The agent's own process will be killed mid-flow by that script; this is
-     expected, not an error to handle.
+     expected, not an error to handle. No elevation is needed — everything
+     runs as the current user under `%LOCALAPPDATA%`.
 
 4. **Tests**: `UpdateChecker`'s version-compare logic and manifest parsing
    need unit tests (mock the HTTP call) in

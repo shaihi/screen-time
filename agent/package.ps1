@@ -23,13 +23,18 @@ if ($dotnetCommand) {
     $dotnetPath = (Resolve-Path -LiteralPath $portableDotnet).Path
 }
 
-& $dotnetPath publish $projectPath -c Release -r win-x64 --self-contained true -o $publishPath
-if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE." }
-
 if (-not $Version) {
     $csprojXml = [xml](Get-Content -LiteralPath $projectPath -Raw)
     $Version = $csprojXml.Project.PropertyGroup.Version | Select-Object -First 1
 }
+
+$publishArgs = @(
+    "publish", $projectPath, "-c", "Release", "-r", "win-x64",
+    "--self-contained", "true", "-o", $publishPath,
+    "-p:Version=$Version", "-p:AssemblyVersion=$Version.0", "-p:FileVersion=$Version.0"
+)
+& $dotnetPath @publishArgs
+if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE." }
 
 $stagePath = Join-Path $distPath "ScreenTimeAgent-$Version"
 New-Item -ItemType Directory -Path $stagePath -Force | Out-Null
