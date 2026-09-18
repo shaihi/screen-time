@@ -90,17 +90,55 @@ Verified live:
 
 ## Follow-up (post-#12 review)
 
+**Correction to the note below: do not infer the temp directory from
+`$PSScriptRoot`.** `install-release.ps1` is located via
+`EnumerateFiles(extractPath, ..., AllDirectories)`, so its actual folder
+depth under the temp root isn't fixed — `$PSScriptRoot\..` can delete the
+wrong level and still leave `update.zip` behind, or worse.
+
+Fix instead with an explicit parameter:
+
+- `UpdateChecker.StartInstallAsync` passes a new `-CleanupRoot
+  <temporaryDirectory>` argument (the absolute path it already created,
+  e.g. `%TEMP%\ScreenTimeAgent-update-<guid>`) to `install-release.ps1`.
+- `install-release.ps1` gets an optional `[string]$CleanupRoot = ""`
+  parameter. As its last step, only if `$CleanupRoot` is non-empty **and**
+  `$CleanupRoot` is rooted under `[IO.Path]::GetTempPath()` **and** its leaf
+  folder name matches `ScreenTimeAgent-update-*` **and** `$PSScriptRoot` is
+  actually inside `$CleanupRoot`, delete `$CleanupRoot` recursively. A
+  manual run (double-clicked from a user's own extracted release zip) never
+  passes this parameter, so it's never touched.
+- `UpdateChecker` must also delete `temporaryDirectory` itself (in a
+  try/catch, best-effort) on every failure path *before* handoff — hash
+  mismatch, corrupt zip, missing `install-release.ps1`/exe in the package —
+  since those cases never reach the PowerShell script at all and currently
+  leak the same way.
+
 `UpdateChecker.StartInstallAsync` creates
 `%TEMP%\ScreenTimeAgent-update-<guid>\` (zip + extracted package) but never
-deletes it. `install-release.ps1` is started from inside that folder and the
-agent's own process gets killed mid-install, so the cleanup can't happen
-before handoff and can't happen in the agent's own `finally` either. Fix by
-having `install-release.ps1` itself remove its own parent temp directory as
-its last step, after it has finished copying `ScreenTime.Agent.exe` out of
-it and no longer needs anything there (`Remove-Item $PSScriptRoot\.. -Recurse
--Force` guarded to only fire when `$PSScriptRoot` is actually under
-`%TEMP%\ScreenTimeAgent-update-*`, so a normal manual run from a
-downloaded-and-extracted release zip elsewhere is never touched).
+deletes it in any path. `install-release.ps1` is started from inside that
+folder and the agent's own process gets killed mid-install on the success
+path, so cleanup can't happen in the agent's own success-path `finally`
+either — hence handing the explicit path to the script above.
+
+### Other loose ends found in the same review (PR #12)
+
+- `MonitorContext._installingUpdate` is never reset if `StartInstallAsync`
+  starts PowerShell successfully but the agent process is never actually
+  killed (e.g. the script errors right after `Process.Start` returns) —
+  the flag wedges `true` forever, silently disabling further update
+  attempts for that run. Reset it in a `finally` around the whole
+  balloon-click handler, not just the exception path.
+- `_checkingForUpdates` / `_installingUpdate` are plain `bool`, not
+  `volatile` — the timer tick, the manual menu click, and the balloon
+  click can all race on them from different callback contexts.
+- The constructor's fire-and-forget `_ = CheckForUpdatesAsync(manual:
+  false)` runs before `Application.Run` starts the message loop; its
+  continuation touching `_tray`/UI state should be confirmed safe (WinForms
+  `SynchronizationContext` isn't installed until `Run` is called).
+- Test gaps in `UpdateCheckerTests.cs`: a non-200 manifest response, and
+  `StartInstallAsync`'s own hash-mismatch path (currently only the manifest
+  hash-format check is tested, not the actual downloaded-zip mismatch).
 
 ## Explicitly out of scope here
 
