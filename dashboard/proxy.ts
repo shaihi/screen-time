@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sessionCookieName, verifySessionToken } from "@/lib/session";
+import { getHouseholds } from "@/lib/households";
+import { householdIdHeader, sessionCookieName, verifySessionToken } from "@/lib/session";
 
 export async function proxy(request: NextRequest) {
   if (
@@ -11,14 +12,22 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const expectedPassword = process.env.DASHBOARD_PASSWORD;
-  if (!expectedPassword) {
+  const households = getHouseholds();
+  if (households.length === 0) {
     if (!process.env.VERCEL) return NextResponse.next();
     return new NextResponse("Dashboard authentication is not configured", { status: 503 });
   }
 
   const token = request.cookies.get(sessionCookieName)?.value;
-  if (await verifySessionToken(token, expectedPassword)) return NextResponse.next();
+  const householdId = await verifySessionToken(
+    token,
+    (id) => households.find((household) => household.id === id)?.password ?? null,
+  );
+  if (householdId) {
+    const headers = new Headers(request.headers);
+    headers.set(householdIdHeader, householdId);
+    return NextResponse.next({ request: { headers } });
+  }
 
   const loginUrl = new URL("/login", request.url);
   return NextResponse.redirect(loginUrl);

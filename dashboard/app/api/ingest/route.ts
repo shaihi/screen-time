@@ -23,20 +23,23 @@ export async function POST(request: Request) {
   const body = await request.text();
   if (body.length > 256_000) return Response.json({ error: "Payload too large" }, { status: 413 });
 
-  if (!verifyIngestSignature(
-    request.headers.get("x-screen-time-timestamp"),
-    request.headers.get("x-screen-time-signature"),
-    body,
-  )) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   let decoded: unknown;
   try { decoded = JSON.parse(body); }
   catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
   const parsed = payloadSchema.safeParse(decoded);
   if (!parsed.success) {
     return Response.json({ error: "Invalid payload", details: parsed.error.flatten() }, { status: 400 });
+  }
+
+  // The signature is checked with the secret belonging to the household that owns
+  // this device, so a valid signature also proves the device is who it claims to be.
+  if (!verifyIngestSignature(
+    parsed.data.deviceId,
+    request.headers.get("x-screen-time-timestamp"),
+    request.headers.get("x-screen-time-signature"),
+    body,
+  )) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   await ensureSchema();

@@ -51,10 +51,31 @@ export async function ensureSchema() {
         PRIMARY KEY (device_id, started_at, app_name, page_title),
         CHECK (date_trunc('minute', started_at) = started_at)
       )`;
+      // household_id defaults to 'default' so pre-existing single-household rows (from
+      // before multi-tenancy) keep working under the legacy fallback household of that name.
       await sql`CREATE TABLE IF NOT EXISTS excluded_apps (
-        app_name TEXT PRIMARY KEY,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        household_id TEXT NOT NULL DEFAULT 'default',
+        app_name TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (household_id, app_name)
       )`;
+      await sql`ALTER TABLE excluded_apps ADD COLUMN IF NOT EXISTS household_id TEXT NOT NULL DEFAULT 'default'`;
+      // Tables created before multi-tenancy have a single-column PRIMARY KEY (app_name),
+      // which would block a second household from ever hiding an app another household
+      // already hid. Widen it to (household_id, app_name).
+      const [excludedAppsPrimaryKey] = await sql`SELECT conname FROM pg_constraint
+        WHERE conrelid = 'excluded_apps'::regclass AND contype = 'p'
+          AND conkey = (SELECT ARRAY[attnum] FROM pg_attribute
+            WHERE attrelid = 'excluded_apps'::regclass AND attname = 'app_name')`;
+      if (excludedAppsPrimaryKey) {
+        // conname comes from pg_constraint (a system catalog, not user input); quoted as an
+        // identifier below since neither sql`` nor sql.query() parameterizes identifiers.
+        const constraintName = String(excludedAppsPrimaryKey.conname).replace(/"/g, '""');
+        await sql.transaction([
+          sql.query(`ALTER TABLE excluded_apps DROP CONSTRAINT "${constraintName}"`, []),
+          sql`ALTER TABLE excluded_apps ADD PRIMARY KEY (household_id, app_name)`,
+        ]);
+      }
     })();
   }
   return schemaPromise;

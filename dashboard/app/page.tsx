@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { AppsPanel } from "@/app/components/apps-panel";
 import { AutoRefresh } from "@/app/components/auto-refresh";
 import { DashboardBoard, type BoardPanel } from "@/app/components/dashboard-board";
@@ -10,7 +11,9 @@ import { RangeShell } from "@/app/components/range-shell";
 import { SessionsPanel } from "@/app/components/sessions-panel";
 import { Timeline, TimelineLegend } from "@/app/components/timeline";
 import { formatLastSeen } from "@/lib/format";
+import { getHouseholdById } from "@/lib/households";
 import { parseRange, rangeLabels } from "@/lib/range";
+import { householdIdHeader } from "@/lib/session";
 import { getSummary } from "@/lib/summary";
 
 import { agentOfflineAfterMinutes } from "@/lib/system-apps";
@@ -24,7 +27,11 @@ function isOnline(lastSeenAt: string | null) {
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ range?: string | string[] }> }) {
   const range = parseRange((await searchParams).range);
-  const summary = await getSummary(range);
+  // proxy.ts (the auth middleware) has already verified the session and set this header;
+  // it's never trusted from an unauthenticated request since proxy.ts gates every route.
+  const householdId = (await headers()).get(householdIdHeader);
+  const household = householdId ? getHouseholdById(householdId) : null;
+  const summary = household ? await getSummary(range, household.id, household.deviceIds) : null;
   const online = isOnline(summary?.lastSeenAt || null);
   const timeZone = summary?.timeZone || "UTC";
   const showDate = range !== "day";

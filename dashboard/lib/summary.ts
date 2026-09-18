@@ -36,13 +36,15 @@ async function rows<T>(query: PromiseLike<Array<Record<string, unknown>>>): Prom
 
 const systemNamesParam = () => systemAppNames.map((name) => name.toLowerCase());
 
-// True for rows without a listed app; `names` is the parameter holding the system names.
-const hiddenAppCondition = (names: string) => `(app_name IS NULL
+// True for rows without a listed app; `names`/`household` are the parameters holding the
+// system names and the requesting household's id (excluded_apps is scoped per household).
+const hiddenAppCondition = (names: string, household: string) => `(app_name IS NULL
   OR lower(app_name) = ANY(${names}::text[])
-  OR EXISTS (SELECT 1 FROM excluded_apps excluded WHERE excluded.app_name = activity_segments.app_name))`;
+  OR EXISTS (SELECT 1 FROM excluded_apps excluded
+    WHERE excluded.app_name = activity_segments.app_name AND excluded.household_id = ${household}))`;
 
-// Rows that should appear as named apps. Queries using it take [deviceId, rangeStart, systemNames].
-const visibleAppFilter = `device_id = $1 AND started_at >= $2::timestamptz AND NOT ${hiddenAppCondition("$3")}`;
+// Rows that should appear as named apps. Queries using it take [deviceId, rangeStart, systemNames, householdId].
+const visibleAppFilter = `device_id = $1 AND started_at >= $2::timestamptz AND NOT ${hiddenAppCondition("$3", "$4")}`;
 
 const toMinuteUsage = (row: MinuteRow): MinuteUsage => ({
   startedAt: new Date(Number(row.epoch) * 1000).toISOString(),
@@ -50,11 +52,15 @@ const toMinuteUsage = (row: MinuteRow): MinuteUsage => ({
   seconds: Number(row.seconds),
 });
 
-export async function getSummary(range: RangeKey): Promise<DashboardSummary | null> {
+export async function getSummary(range: RangeKey, householdId: string, deviceIds: string[]): Promise<DashboardSummary | null> {
   if (!process.env.DATABASE_URL) return null;
+  if (deviceIds.length === 0) return null;
   await ensureSchema();
   const sql = database();
   const timeZone = process.env.DISPLAY_TIME_ZONE || "UTC";
+  // "*" (the legacy single-household fallback) means every device; SQL can't express
+  // that as a value, so it's handled as "no device filter" instead of a real ANY() match.
+  const ownsAllDevices = deviceIds.includes("*");
 
   const [bounds] = await sql.query(
     `SELECT ${rangeStartSql(range)}::text AS start_at,
@@ -70,13 +76,13 @@ export async function getSummary(range: RangeKey): Promise<DashboardSummary | nu
       COALESCE(SUM(duration_seconds) FILTER (WHERE state = 'idle'), 0)::text AS idle_seconds,
       COALESCE(SUM(duration_seconds) FILTER (WHERE state = 'locked'), 0)::text AS locked_seconds
     FROM activity_segments
-    WHERE started_at >= $1::timestamptz
+    WHERE started_at >= $1::timestamptz AND (${ownsAllDevices ? "TRUE" : "device_id = ANY($2)"})
     GROUP BY device_id ORDER BY MAX(received_at) DESC LIMIT 1`,
-    [bounds.start_at],
+    ownsAllDevices ? [bounds.start_at] : [bounds.start_at, deviceIds],
   ) as TotalsRow[];
   if (!totals[0]) return null;
   const deviceId = totals[0].device_id;
-  const appParams = [deviceId, bounds.start_at, systemNamesParam()];
+  const appParams = [deviceId, bounds.start_at, systemNamesParam(), householdId];
 
   const [timelineRows, apps, foregroundRows, backgroundRows, hiddenApps, pageRows, idleRows] = await Promise.all([
     rows<TimelineRow>(sql.query(
@@ -84,12 +90,12 @@ export async function getSummary(range: RangeKey): Promise<DashboardSummary | nu
         ? "EXTRACT(HOUR FROM started_at AT TIME ZONE $1)::int::text"
         : "(started_at AT TIME ZONE $1)::date::text"} AS bucket,
         state,
-        CASE WHEN ${hiddenAppCondition("$4")} THEN NULL ELSE app_name END AS app,
+        CASE WHEN ${hiddenAppCondition("$4", "$5")} THEN NULL ELSE app_name END AS app,
         SUM(duration_seconds)::int AS seconds
       FROM activity_segments
       WHERE device_id = $2 AND started_at >= $3::timestamptz AND state IN ('active', 'media', 'idle')
       GROUP BY 1, 2, 3`,
-      [timeZone, deviceId, bounds.start_at, systemNamesParam()],
+      [timeZone, deviceId, bounds.start_at, systemNamesParam(), householdId],
     )),
     rows<{ name: string; seconds: number }>(sql.query(
       `SELECT app_name AS name, SUM(duration_seconds)::int AS seconds
@@ -112,13 +118,14 @@ export async function getSummary(range: RangeKey): Promise<DashboardSummary | nu
       GROUP BY 1, 2`,
       appParams,
     )),
-    rows<{ app_name: string }>(sql`SELECT app_name FROM excluded_apps ORDER BY app_name`),
+    rows<{ app_name: string }>(sql`SELECT app_name FROM excluded_apps WHERE household_id = ${householdId} ORDER BY app_name`),
     rows<PageRow>(sql.query(
       `SELECT EXTRACT(EPOCH FROM started_at)::float8 AS epoch, app_name, page_title, duration_seconds AS seconds
       FROM page_visits
       WHERE device_id = $1 AND started_at >= $2::timestamptz
-        AND NOT EXISTS (SELECT 1 FROM excluded_apps excluded WHERE excluded.app_name = page_visits.app_name)`,
-      [deviceId, bounds.start_at],
+        AND NOT EXISTS (SELECT 1 FROM excluded_apps excluded
+          WHERE excluded.app_name = page_visits.app_name AND excluded.household_id = $3)`,
+      [deviceId, bounds.start_at, householdId],
     )),
     rows<MinuteRow>(sql.query(
       `SELECT EXTRACT(EPOCH FROM started_at)::float8 AS epoch, app_name, SUM(duration_seconds)::int AS seconds
