@@ -6,11 +6,11 @@ Read this file before changing or reinstalling Screen Time on this PC.
 
 - Repository: `https://github.com/shaihi/screen-time`
 - Production dashboard: `https://screen-time-iota.vercel.app`
-- The installed agent is the current `main` implementation with foreground browser page titles (agent 1.3 behavior).
+- The installed agent is version 1.4.0 from current `main`, with foreground browser page titles and a visible version in the tray tooltip and menu.
 - It runs only in the notification tray, samples every 2 seconds, uploads every minute, and starts at user sign-in.
 - Installed files and preserved settings are under `%LOCALAPPDATA%\ScreenTimeAgent`.
 - `CollectPageTitles` is enabled. It collects only the foreground browser window title while active—never URLs, page content, or keystrokes.
-- PR #9 (`feat/agent-version-display`) is a future addition that shows version 1.4.0 in the tray tooltip and menu. It must remain unmerged until the user asks to ship it.
+- PR #9 (`feat/agent-version-display`) was merged and installed on 2026-09-18.
 
 ## Deterministic update command
 
