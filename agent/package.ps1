@@ -41,6 +41,7 @@ New-Item -ItemType Directory -Path $stagePath -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $publishPath "ScreenTime.Agent.exe") -Destination $stagePath
 Copy-Item -LiteralPath (Join-Path $root "install-release.ps1") -Destination $stagePath
 Copy-Item -LiteralPath (Join-Path $root "uninstall.ps1") -Destination $stagePath
+Copy-Item -LiteralPath (Join-Path $root "install.bat.template") -Destination (Join-Path $stagePath "Install (fill in and double-click).bat")
 
 $zipPath = Join-Path $distPath "ScreenTimeAgent-$Version.zip"
 Compress-Archive -Path "$stagePath\*" -DestinationPath $zipPath -Force

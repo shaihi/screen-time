@@ -1,0 +1,16 @@
+@echo off
+REM Fill in the three values below, save, then double-click this file.
+REM No PowerShell knowledge needed -- this just runs the real installer
+REM for you, hidden, and closes this window when done.
+
+set API_URL=https://YOUR-PROJECT.vercel.app/api/ingest
+set INGEST_SECRET=PASTE-YOUR-SECRET-HERE
+set DEVICE_ID=PASTE-YOUR-DEVICE-NAME-HERE
+
+powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0install-release.ps1" -ApiUrl "%API_URL%" -IngestSecret "%INGEST_SECRET%" -DeviceId "%DEVICE_ID%"
+
+echo.
+echo Done. Check the notification tray for the Screen Time Agent icon.
+echo (If Windows showed a security warning first, that's expected --
+echo  click "More info" then "Run anyway".)
+pause
