@@ -12,7 +12,18 @@ if (Test-Path -LiteralPath $publishPath) { Remove-Item -LiteralPath $publishPath
 if (Test-Path -LiteralPath $distPath) { Remove-Item -LiteralPath $distPath -Recurse -Force }
 New-Item -ItemType Directory -Path $distPath -Force | Out-Null
 
-dotnet publish $projectPath -c Release -r win-x64 --self-contained true -o $publishPath
+$dotnetCommand = Get-Command dotnet -ErrorAction SilentlyContinue
+if ($dotnetCommand) {
+    $dotnetPath = $dotnetCommand.Source
+} else {
+    $portableDotnet = Join-Path $root "..\.tools\dotnet\dotnet.exe"
+    if (-not (Test-Path -LiteralPath $portableDotnet)) {
+        throw "The .NET 8 SDK is required to package the agent."
+    }
+    $dotnetPath = (Resolve-Path -LiteralPath $portableDotnet).Path
+}
+
+& $dotnetPath publish $projectPath -c Release -r win-x64 --self-contained true -o $publishPath
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE." }
 
 if (-not $Version) {
