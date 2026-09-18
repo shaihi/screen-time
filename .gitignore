@@ -19,3 +19,4 @@ agent/dist/
 .DS_Store
 Thumbs.db
 .vercel
+neighbor-install/
