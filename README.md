@@ -60,7 +60,7 @@ From PowerShell in this repository:
 
 This publishes the agent, copies it to `%LOCALAPPDATA%\ScreenTimeAgent`, creates a current-user Startup shortcut, and launches the notification-tray icon. It does not request administrator elevation.
 
-Right-click the tray icon to upload immediately, pause for 30 minutes, resume, or exit. Starting with agent 1.4, its version is visible in the tray tooltip and menu. When offline, completed minute records remain queued locally and are retried later.
+Right-click the tray icon to upload immediately, pause for 30 minutes, resume, check for updates, or exit. Starting with agent 1.4, its version is visible in the tray tooltip and menu. Agent 1.5 checks the public GitHub release manifest at startup and once per day; when a newer signed-hash package is available, it asks the user to click a tray notification before installing. Updates are never installed silently. When offline, completed minute records remain queued locally and are retried later.
 
 The headline number is **real use** (hands-on plus watching). A switch above the cards, **Count unattended as usage**, adds time the screen was on with an app left running but no input; the choice is saved in the browser. The three cards and the bar split screen-on time into real use, unattended and idle.
 
