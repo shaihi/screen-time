@@ -20,8 +20,8 @@ internal sealed class MonitorContext : ApplicationContext
     private static readonly TimeSpan ShutdownUploadTimeout = TimeSpan.FromSeconds(4);
     private readonly object _aggregatorLock = new();
     private bool _sampling;
-    private bool _checkingForUpdates;
-    private bool _installingUpdate;
+    private int _checkingForUpdates;
+    private int _installingUpdate;
     private volatile bool _stopping;
     private DateTimeOffset? _pausedUntil;
     private UpdateManifest? _availableUpdate;
@@ -60,7 +60,13 @@ internal sealed class MonitorContext : ApplicationContext
         _uploadTimer.Start();
         _updateTimer.Start();
         SystemEvents.SessionEnding += OnSessionEnding;
+        Application.Idle += OnApplicationIdle;
         _ = SampleAsync();
+    }
+
+    private void OnApplicationIdle(object? sender, EventArgs e)
+    {
+        Application.Idle -= OnApplicationIdle;
         _ = CheckForUpdatesAsync(manual: false);
     }
 
@@ -129,8 +135,7 @@ internal sealed class MonitorContext : ApplicationContext
 
     private async Task CheckForUpdatesAsync(bool manual)
     {
-        if (_checkingForUpdates || _stopping) return;
-        _checkingForUpdates = true;
+        if (_stopping || Interlocked.CompareExchange(ref _checkingForUpdates, 1, 0) != 0) return;
         try
         {
             if (manual) UpdateTooltip("Checking for updates");
@@ -143,8 +148,8 @@ internal sealed class MonitorContext : ApplicationContext
         }
         finally
         {
-            _checkingForUpdates = false;
-            if (manual && !_installingUpdate) UpdateTooltip("Monitoring");
+            Interlocked.Exchange(ref _checkingForUpdates, 0);
+            if (manual && Volatile.Read(ref _installingUpdate) == 0) UpdateTooltip("Monitoring");
         }
     }
 
@@ -159,8 +164,8 @@ internal sealed class MonitorContext : ApplicationContext
 
     private async void OnBalloonTipClicked(object? sender, EventArgs e)
     {
-        if (_availableUpdate is null || _installingUpdate || _stopping) return;
-        _installingUpdate = true;
+        if (_availableUpdate is null || _stopping ||
+            Interlocked.CompareExchange(ref _installingUpdate, 1, 0) != 0) return;
         UpdateTooltip("Installing update");
         try
         {
@@ -168,12 +173,15 @@ internal sealed class MonitorContext : ApplicationContext
         }
         catch
         {
-            _installingUpdate = false;
             UpdateTooltip("Update failed");
             ShowBalloon(
                 "Screen Time update failed",
                 "The update was not installed. Try again later.",
                 ToolTipIcon.Error);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _installingUpdate, 0);
         }
     }
 
@@ -194,6 +202,7 @@ internal sealed class MonitorContext : ApplicationContext
         _sampleTimer.Stop();
         _uploadTimer.Stop();
         _updateTimer.Stop();
+        Application.Idle -= OnApplicationIdle;
         SystemEvents.SessionEnding -= OnSessionEnding;
         _updates.UpdateAvailable -= OnUpdateAvailable;
         _tray.BalloonTipClicked -= OnBalloonTipClicked;

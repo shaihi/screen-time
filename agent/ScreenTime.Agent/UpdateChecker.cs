@@ -66,65 +66,90 @@ internal sealed class UpdateChecker : IDisposable
             $"ScreenTimeAgent-update-{Guid.NewGuid():N}");
         var zipPath = Path.Combine(temporaryDirectory, "update.zip");
         var extractPath = Path.Combine(temporaryDirectory, "package");
-        Directory.CreateDirectory(temporaryDirectory);
+        var handedOffToInstaller = false;
 
-        using (var response = await _http.GetAsync(
-                   manifest.Url,
-                   HttpCompletionOption.ResponseHeadersRead,
-                   cancellationToken))
+        try
         {
-            response.EnsureSuccessStatusCode();
-            await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
-            await using var destination = new FileStream(
-                zipPath,
-                FileMode.CreateNew,
-                FileAccess.Write,
-                FileShare.None,
-                81920,
-                FileOptions.Asynchronous);
-            await source.CopyToAsync(destination, cancellationToken);
+            Directory.CreateDirectory(temporaryDirectory);
+
+            using (var response = await _http.GetAsync(
+                       manifest.Url,
+                       HttpCompletionOption.ResponseHeadersRead,
+                       cancellationToken))
+            {
+                response.EnsureSuccessStatusCode();
+                await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
+                await using var destination = new FileStream(
+                    zipPath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None,
+                    81920,
+                    FileOptions.Asynchronous);
+                await source.CopyToAsync(destination, cancellationToken);
+            }
+
+            await using (var zip = File.OpenRead(zipPath))
+            {
+                var actualHash = Convert.ToHexString(
+                    await SHA256.HashDataAsync(zip, cancellationToken));
+                if (!actualHash.Equals(manifest.Sha256, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("The downloaded update failed SHA-256 verification.");
+            }
+
+            ZipFile.ExtractToDirectory(zipPath, extractPath);
+            var installer = Directory
+                .EnumerateFiles(extractPath, "install-release.ps1", SearchOption.AllDirectories)
+                .SingleOrDefault()
+                ?? throw new InvalidDataException("The update package does not contain install-release.ps1.");
+            var packageDirectory = Path.GetDirectoryName(installer)
+                ?? throw new InvalidDataException("The update package directory is invalid.");
+            if (!File.Exists(Path.Combine(packageDirectory, "ScreenTime.Agent.exe")))
+                throw new InvalidDataException("The update package does not contain ScreenTime.Agent.exe.");
+
+            var startInfo = new ProcessStartInfo("powershell.exe")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WorkingDirectory = packageDirectory,
+            };
+            startInfo.ArgumentList.Add("-NoProfile");
+            startInfo.ArgumentList.Add("-WindowStyle");
+            startInfo.ArgumentList.Add("Hidden");
+            startInfo.ArgumentList.Add("-ExecutionPolicy");
+            startInfo.ArgumentList.Add("Bypass");
+            startInfo.ArgumentList.Add("-File");
+            startInfo.ArgumentList.Add(installer);
+            startInfo.ArgumentList.Add("-ApiUrl");
+            startInfo.ArgumentList.Add(config.ApiUrl);
+            startInfo.ArgumentList.Add("-IngestSecret");
+            startInfo.ArgumentList.Add(config.IngestSecret);
+            startInfo.ArgumentList.Add("-DeviceId");
+            startInfo.ArgumentList.Add(config.DeviceId);
+            startInfo.ArgumentList.Add("-CleanupRoot");
+            startInfo.ArgumentList.Add(temporaryDirectory);
+
+            using var installerProcess = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("The update installer could not be started.");
+            handedOffToInstaller = true;
         }
-
-        await using (var zip = File.OpenRead(zipPath))
+        finally
         {
-            var actualHash = Convert.ToHexString(
-                await SHA256.HashDataAsync(zip, cancellationToken));
-            if (!actualHash.Equals(manifest.Sha256, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("The downloaded update failed SHA-256 verification.");
+            if (!handedOffToInstaller)
+                TryDeleteDirectory(temporaryDirectory);
         }
+    }
 
-        ZipFile.ExtractToDirectory(zipPath, extractPath);
-        var installer = Directory
-            .EnumerateFiles(extractPath, "install-release.ps1", SearchOption.AllDirectories)
-            .SingleOrDefault()
-            ?? throw new InvalidDataException("The update package does not contain install-release.ps1.");
-        var packageDirectory = Path.GetDirectoryName(installer)
-            ?? throw new InvalidDataException("The update package directory is invalid.");
-        if (!File.Exists(Path.Combine(packageDirectory, "ScreenTime.Agent.exe")))
-            throw new InvalidDataException("The update package does not contain ScreenTime.Agent.exe.");
-
-        var startInfo = new ProcessStartInfo("powershell.exe")
+    private static void TryDeleteDirectory(string path)
+    {
+        try
         {
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WorkingDirectory = packageDirectory,
-        };
-        startInfo.ArgumentList.Add("-NoProfile");
-        startInfo.ArgumentList.Add("-WindowStyle");
-        startInfo.ArgumentList.Add("Hidden");
-        startInfo.ArgumentList.Add("-ExecutionPolicy");
-        startInfo.ArgumentList.Add("Bypass");
-        startInfo.ArgumentList.Add("-File");
-        startInfo.ArgumentList.Add(installer);
-        startInfo.ArgumentList.Add("-ApiUrl");
-        startInfo.ArgumentList.Add(config.ApiUrl);
-        startInfo.ArgumentList.Add("-IngestSecret");
-        startInfo.ArgumentList.Add(config.IngestSecret);
-        startInfo.ArgumentList.Add("-DeviceId");
-        startInfo.ArgumentList.Add(config.DeviceId);
-
-        using var installerProcess = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("The update installer could not be started.");
+            if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
+        }
+        catch
+        {
+            // Failure cleanup is best-effort; preserve the original install error.
+        }
     }
 
     internal static UpdateManifest? ParseManifest(string json)

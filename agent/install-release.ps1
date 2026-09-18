@@ -1,21 +1,18 @@
 param(
     [string]$ApiUrl,
     [string]$IngestSecret,
-    [string]$DeviceId
+    [string]$DeviceId,
+    [string]$CleanupRoot = ""
 )
 
 # Runs from an extracted release zip next to ScreenTime.Agent.exe.
 # No .NET SDK, no git clone, no build step -- this is what the neighbor runs.
 
 $ErrorActionPreference = "Stop"
-$sourceExe = Join-Path $PSScriptRoot "ScreenTime.Agent.exe"
-if (-not (Test-Path -LiteralPath $sourceExe)) {
-    throw "ScreenTime.Agent.exe not found next to this script. Re-extract the release zip and run from inside it."
-}
-
 $installPath = Join-Path $env:LOCALAPPDATA "ScreenTimeAgent"
 $configPath = Join-Path $installPath "appsettings.json"
 $installedExe = Join-Path $installPath "ScreenTime.Agent.exe"
+$sourceExe = Join-Path $PSScriptRoot "ScreenTime.Agent.exe"
 
 function Stop-AgentProcess {
     $deadline = [DateTime]::UtcNow.AddSeconds(15)
@@ -60,31 +57,42 @@ function Install-VerifiedFile([string]$Source, [string]$Destination) {
     }
 }
 
-function Get-AutoUpdateTempRoot {
+function Get-ValidatedCleanupRoot([string]$CandidatePath) {
     try {
-        # UpdateChecker extracts to %TEMP%\ScreenTimeAgent-update-<guid>\package.
-        # A manually extracted release anywhere else must never be removed.
-        $candidate = [System.IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot)).TrimEnd([char]'\')
-        $tempRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd([char]'\')
-        $candidateParent = [System.IO.Directory]::GetParent($candidate)
+        if ([string]::IsNullOrWhiteSpace($CandidatePath) -or
+            -not [System.IO.Path]::IsPathRooted($CandidatePath)) { return $null }
+
+        $separator = [System.IO.Path]::DirectorySeparatorChar
+        $candidate = [System.IO.Path]::GetFullPath($CandidatePath).TrimEnd($separator)
+        $tempRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd($separator)
+        $scriptRoot = [System.IO.Path]::GetFullPath($PSScriptRoot).TrimEnd($separator)
         $candidateName = [System.IO.Path]::GetFileName($candidate)
-        if ($candidateParent -and
-            $candidateParent.FullName.TrimEnd([char]'\').Equals($tempRoot, [System.StringComparison]::OrdinalIgnoreCase) -and
-            $candidateName -like "ScreenTimeAgent-update-*") {
-            return $candidate
-        }
+        $isUnderTemp = $candidate.StartsWith(
+            "$tempRoot$separator",
+            [System.StringComparison]::OrdinalIgnoreCase)
+        $scriptIsInsideCandidate = $scriptRoot.StartsWith(
+            "$candidate$separator",
+            [System.StringComparison]::OrdinalIgnoreCase)
+
+        if ($isUnderTemp -and
+            $candidateName -like "ScreenTimeAgent-update-*" -and
+            $scriptIsInsideCandidate) { return $candidate }
     } catch { }
     return $null
 }
 
-$autoUpdateTempRoot = Get-AutoUpdateTempRoot
-New-Item -ItemType Directory -Path $installPath -Force | Out-Null
+$autoUpdateTempRoot = Get-ValidatedCleanupRoot $CleanupRoot
 $transcriptPath = Join-Path $installPath "update-install.log"
 $transcriptStarted = $false
 
 try {
+New-Item -ItemType Directory -Path $installPath -Force | Out-Null
 Start-Transcript -LiteralPath $transcriptPath -Append | Out-Null
 $transcriptStarted = $true
+
+if (-not (Test-Path -LiteralPath $sourceExe)) {
+    throw "ScreenTime.Agent.exe not found next to this script. Re-extract the release zip and run from inside it."
+}
 
 $existing = $null
 if (Test-Path -LiteralPath $configPath) {
@@ -145,7 +153,9 @@ Write-Host "Windows may show an 'unrecognized publisher' warning the first time 
             Set-Location ([System.IO.Path]::GetTempPath())
             Remove-Item -LiteralPath $autoUpdateTempRoot -Recurse -Force
         } catch {
-            Add-Content -LiteralPath $transcriptPath -Value "Temp cleanup failed: $($_.Exception.Message)"
+            try {
+                Add-Content -LiteralPath $transcriptPath -Value "Temp cleanup failed: $($_.Exception.Message)"
+            } catch { }
         }
     }
 }

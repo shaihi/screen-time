@@ -93,6 +93,42 @@ public class UpdateCheckerTests
         Assert.Null(result.Manifest);
     }
 
+    [Fact]
+    public async Task Non_success_manifest_response_is_returned_without_throwing()
+    {
+        using var client = new HttpClient(new StubHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)));
+        using var checker = new UpdateChecker(client);
+
+        var result = await checker.CheckAsync(new Version(1, 4, 0, 0));
+
+        Assert.Equal(UpdateCheckStatus.Unavailable, result.Status);
+        Assert.Null(result.Manifest);
+    }
+
+    [Fact]
+    public async Task Install_rejects_a_download_whose_hash_does_not_match_the_manifest()
+    {
+        using var client = new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent("not the expected zip"u8.ToArray()),
+        }));
+        using var checker = new UpdateChecker(client);
+        var manifest = new UpdateManifest(
+            "1.5.0",
+            "https://example.com/update.zip",
+            new string('a', 64));
+        var config = new AgentConfig(
+            "https://example.com/api/ingest",
+            new string('s', 32),
+            "test-device");
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(
+            () => checker.StartInstallAsync(manifest, config));
+
+        Assert.Contains("SHA-256", exception.Message);
+    }
+
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> response) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(
