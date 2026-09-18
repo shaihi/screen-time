@@ -13,6 +13,7 @@ Read this file before changing or reinstalling Screen Time on this PC.
 - PR #9 (`feat/agent-version-display`) was merged and installed on 2026-09-18.
 - Agent release `agent-v1.4.0` was published on 2026-09-18 with a ZIP, SHA-256 file, and manifest. The ZIP installer was verified in an isolated clean install and the production agent was restored afterward.
 - PR #12 (`feat/agent-auto-update`) was merged and agent 1.5.0 was installed on 2026-09-18. It checks the public anonymous release manifest at startup and once per 24 hours, notifies when a newer version exists, and installs only after the user clicks the notification. The tray menu also has **Check for updates**.
+- The post-PR #12 installer follow-up is implemented: auto-update installs write `%LOCALAPPDATA%\ScreenTimeAgent\update-install.log` and remove only guarded `%TEMP%\ScreenTimeAgent-update-*` roots after handoff. This was verified with a packaged integration install.
 - The repository is public and `releases/latest/download/manifest.json` is available anonymously. No GitHub token is embedded in the agent.
 
 ## Deterministic update command

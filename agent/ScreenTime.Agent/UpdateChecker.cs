@@ -110,6 +110,8 @@ internal sealed class UpdateChecker : IDisposable
             WorkingDirectory = packageDirectory,
         };
         startInfo.ArgumentList.Add("-NoProfile");
+        startInfo.ArgumentList.Add("-WindowStyle");
+        startInfo.ArgumentList.Add("Hidden");
         startInfo.ArgumentList.Add("-ExecutionPolicy");
         startInfo.ArgumentList.Add("Bypass");
         startInfo.ArgumentList.Add("-File");

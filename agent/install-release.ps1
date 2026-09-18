@@ -60,6 +60,32 @@ function Install-VerifiedFile([string]$Source, [string]$Destination) {
     }
 }
 
+function Get-AutoUpdateTempRoot {
+    try {
+        # UpdateChecker extracts to %TEMP%\ScreenTimeAgent-update-<guid>\package.
+        # A manually extracted release anywhere else must never be removed.
+        $candidate = [System.IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot)).TrimEnd([char]'\')
+        $tempRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd([char]'\')
+        $candidateParent = [System.IO.Directory]::GetParent($candidate)
+        $candidateName = [System.IO.Path]::GetFileName($candidate)
+        if ($candidateParent -and
+            $candidateParent.FullName.TrimEnd([char]'\').Equals($tempRoot, [System.StringComparison]::OrdinalIgnoreCase) -and
+            $candidateName -like "ScreenTimeAgent-update-*") {
+            return $candidate
+        }
+    } catch { }
+    return $null
+}
+
+$autoUpdateTempRoot = Get-AutoUpdateTempRoot
+New-Item -ItemType Directory -Path $installPath -Force | Out-Null
+$transcriptPath = Join-Path $installPath "update-install.log"
+$transcriptStarted = $false
+
+try {
+Start-Transcript -LiteralPath $transcriptPath -Append | Out-Null
+$transcriptStarted = $true
+
 $existing = $null
 if (Test-Path -LiteralPath $configPath) {
     $existing = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
@@ -77,7 +103,6 @@ if (-not $ApiUrl -or -not $IngestSecret) {
 }
 
 Stop-AgentProcess
-New-Item -ItemType Directory -Path $installPath -Force | Out-Null
 Wait-FileUnlocked $installedExe
 Install-VerifiedFile $sourceExe $installedExe
 
@@ -111,3 +136,16 @@ if ($installedProcesses.Count -ne 1) {
 }
 Write-Host "Installed. The agent is running in the notification tray and will start at sign-in."
 Write-Host "Windows may show an 'unrecognized publisher' warning the first time -- click 'More info' then 'Run anyway'. This is expected for an unsigned, self-published tool."
+} finally {
+    if ($transcriptStarted) {
+        try { Stop-Transcript | Out-Null } catch { }
+    }
+    if ($autoUpdateTempRoot -and (Test-Path -LiteralPath $autoUpdateTempRoot)) {
+        try {
+            Set-Location ([System.IO.Path]::GetTempPath())
+            Remove-Item -LiteralPath $autoUpdateTempRoot -Recurse -Force
+        } catch {
+            Add-Content -LiteralPath $transcriptPath -Value "Temp cleanup failed: $($_.Exception.Message)"
+        }
+    }
+}
