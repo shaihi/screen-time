@@ -4,19 +4,27 @@ namespace ScreenTime.Agent;
 
 internal sealed class MonitorContext : ApplicationContext
 {
-    private static readonly string Version = FormatVersion(typeof(MonitorContext).Assembly.GetName().Version);
+    private static readonly Version AssemblyVersion =
+        typeof(MonitorContext).Assembly.GetName().Version ?? new Version(0, 0, 0, 0);
+    private static readonly string DisplayVersion = FormatVersion(AssemblyVersion);
+    private const int DailyUpdateIntervalMilliseconds = 24 * 60 * 60 * 1000;
     private readonly AgentConfig _config;
     private readonly WindowsActivity _activity = new();
     private readonly MinuteAggregator _aggregator = new();
     private readonly UploadQueue _uploads;
+    private readonly UpdateChecker _updates = new();
     private readonly NotifyIcon _tray;
     private readonly System.Windows.Forms.Timer _sampleTimer;
     private readonly System.Windows.Forms.Timer _uploadTimer;
+    private readonly System.Windows.Forms.Timer _updateTimer;
     private static readonly TimeSpan ShutdownUploadTimeout = TimeSpan.FromSeconds(4);
     private readonly object _aggregatorLock = new();
     private bool _sampling;
+    private bool _checkingForUpdates;
+    private bool _installingUpdate;
     private volatile bool _stopping;
     private DateTimeOffset? _pausedUntil;
+    private UpdateManifest? _availableUpdate;
 
     public MonitorContext(AgentConfig config)
     {
@@ -26,27 +34,34 @@ internal sealed class MonitorContext : ApplicationContext
         menu.Items.Add("Send now", null, async (_, _) => await SendNowAsync());
         menu.Items.Add("Pause for 30 minutes", null, (_, _) => Pause(TimeSpan.FromMinutes(30)));
         menu.Items.Add("Resume", null, (_, _) => { _pausedUntil = null; UpdateTooltip("Monitoring"); });
+        menu.Items.Add("Check for updates", null, async (_, _) => await CheckForUpdatesAsync(manual: true));
         menu.Items.Add(new ToolStripSeparator());
-        var versionItem = menu.Items.Add($"Version {Version}");
+        var versionItem = menu.Items.Add($"Version {DisplayVersion}");
         versionItem.Enabled = false;
         menu.Items.Add("Exit", null, (_, _) => ExitThread());
 
         _tray = new NotifyIcon
         {
             Icon = SystemIcons.Information,
-            Text = $"Screen Time {Version} — Monitoring",
+            Text = $"Screen Time {DisplayVersion} — Monitoring",
             ContextMenuStrip = menu,
             Visible = true,
         };
+        _tray.BalloonTipClicked += OnBalloonTipClicked;
+        _updates.UpdateAvailable += OnUpdateAvailable;
 
         _sampleTimer = new System.Windows.Forms.Timer { Interval = config.SampleIntervalSeconds * 1000 };
         _sampleTimer.Tick += async (_, _) => await SampleAsync();
         _uploadTimer = new System.Windows.Forms.Timer { Interval = config.UploadIntervalMinutes * 60 * 1000 };
         _uploadTimer.Tick += async (_, _) => await SendNowAsync();
+        _updateTimer = new System.Windows.Forms.Timer { Interval = DailyUpdateIntervalMilliseconds };
+        _updateTimer.Tick += async (_, _) => await CheckForUpdatesAsync(manual: false);
         _sampleTimer.Start();
         _uploadTimer.Start();
+        _updateTimer.Start();
         SystemEvents.SessionEnding += OnSessionEnding;
         _ = SampleAsync();
+        _ = CheckForUpdatesAsync(manual: false);
     }
 
     private async Task SampleAsync()
@@ -108,8 +123,66 @@ internal sealed class MonitorContext : ApplicationContext
 
     private void UpdateTooltip(string status)
     {
-        var text = $"Screen Time {Version} — {status}";
+        var text = $"Screen Time {DisplayVersion} — {status}";
         _tray.Text = text[..Math.Min(63, text.Length)];
+    }
+
+    private async Task CheckForUpdatesAsync(bool manual)
+    {
+        if (_checkingForUpdates || _stopping) return;
+        _checkingForUpdates = true;
+        try
+        {
+            if (manual) UpdateTooltip("Checking for updates");
+            var result = await _updates.CheckAsync(AssemblyVersion);
+            if (!manual) return;
+            if (result.Status == UpdateCheckStatus.UpToDate)
+                ShowBalloon("Screen Time", $"Version {DisplayVersion} is up to date.", ToolTipIcon.Info);
+            else if (result.Status == UpdateCheckStatus.Unavailable)
+                ShowBalloon("Update check unavailable", "Try again later.", ToolTipIcon.Warning);
+        }
+        finally
+        {
+            _checkingForUpdates = false;
+            if (manual && !_installingUpdate) UpdateTooltip("Monitoring");
+        }
+    }
+
+    private void OnUpdateAvailable(UpdateManifest manifest)
+    {
+        _availableUpdate = manifest;
+        ShowBalloon(
+            "Screen Time update available",
+            $"Screen Time {manifest.Version} is available — click to install.",
+            ToolTipIcon.Info);
+    }
+
+    private async void OnBalloonTipClicked(object? sender, EventArgs e)
+    {
+        if (_availableUpdate is null || _installingUpdate || _stopping) return;
+        _installingUpdate = true;
+        UpdateTooltip("Installing update");
+        try
+        {
+            await _updates.StartInstallAsync(_availableUpdate, _config);
+        }
+        catch
+        {
+            _installingUpdate = false;
+            UpdateTooltip("Update failed");
+            ShowBalloon(
+                "Screen Time update failed",
+                "The update was not installed. Try again later.",
+                ToolTipIcon.Error);
+        }
+    }
+
+    private void ShowBalloon(string title, string text, ToolTipIcon icon)
+    {
+        _tray.BalloonTipTitle = title;
+        _tray.BalloonTipText = text;
+        _tray.BalloonTipIcon = icon;
+        _tray.ShowBalloonTip(10_000);
     }
 
     private static string FormatVersion(Version? version) => version is null
@@ -120,11 +193,15 @@ internal sealed class MonitorContext : ApplicationContext
     {
         _sampleTimer.Stop();
         _uploadTimer.Stop();
+        _updateTimer.Stop();
         SystemEvents.SessionEnding -= OnSessionEnding;
+        _updates.UpdateAvailable -= OnUpdateAvailable;
+        _tray.BalloonTipClicked -= OnBalloonTipClicked;
         _stopping = true;
         FlushAndUpload();
         _tray.Visible = false;
         _tray.Dispose();
+        _updates.Dispose();
         base.ExitThreadCore();
     }
 }

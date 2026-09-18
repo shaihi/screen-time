@@ -9,9 +9,11 @@
   <!-- Platform-neutral agent logic, compiled directly so the tests run on any OS. -->
   <ItemGroup>
     <Compile Include="..\ScreenTime.Agent\AppNames.cs" Link="Agent\AppNames.cs" />
+    <Compile Include="..\ScreenTime.Agent\AgentConfig.cs" Link="Agent\AgentConfig.cs" />
     <Compile Include="..\ScreenTime.Agent\MinuteAggregator.cs" Link="Agent\MinuteAggregator.cs" />
     <Compile Include="..\ScreenTime.Agent\Models.cs" Link="Agent\Models.cs" />
     <Compile Include="..\ScreenTime.Agent\PageTitles.cs" Link="Agent\PageTitles.cs" />
+    <Compile Include="..\ScreenTime.Agent\UpdateChecker.cs" Link="Agent\UpdateChecker.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
