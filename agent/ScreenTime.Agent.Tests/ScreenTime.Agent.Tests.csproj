@@ -14,6 +14,7 @@
     <Compile Include="..\ScreenTime.Agent\Models.cs" Link="Agent\Models.cs" />
     <Compile Include="..\ScreenTime.Agent\PageTitles.cs" Link="Agent\PageTitles.cs" />
     <Compile Include="..\ScreenTime.Agent\UpdateChecker.cs" Link="Agent\UpdateChecker.cs" />
+    <Compile Include="..\ScreenTime.Agent\UsageReminder.cs" Link="Agent\UsageReminder.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />

@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { parseStoredReminderMilestones, type ReminderMilestone } from "@/lib/reminder-policy";
 
 let schemaPromise: Promise<unknown> | undefined;
 
@@ -76,7 +77,29 @@ export async function ensureSchema() {
           sql`ALTER TABLE excluded_apps ADD PRIMARY KEY (household_id, app_name)`,
         ]);
       }
+      await sql`CREATE TABLE IF NOT EXISTS usage_reminder_settings (
+        household_id TEXT PRIMARY KEY,
+        milestones JSONB NOT NULL DEFAULT '[]'::jsonb,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`;
     })();
   }
   return schemaPromise;
+}
+
+export async function getReminderMilestones(householdId: string | null): Promise<ReminderMilestone[]> {
+  // Keep the documented no-database local dashboard empty state working.
+  if (!householdId || !process.env.DATABASE_URL) return [];
+  await ensureSchema();
+  const sql = database();
+  const [settings] = await sql`SELECT milestones FROM usage_reminder_settings WHERE household_id = ${householdId}`;
+  return parseStoredReminderMilestones(settings?.milestones);
+}
+
+export async function saveReminderMilestones(householdId: string, milestones: ReminderMilestone[]) {
+  await ensureSchema();
+  const sql = database();
+  await sql`INSERT INTO usage_reminder_settings (household_id, milestones)
+    VALUES (${householdId}, ${JSON.stringify(milestones)}::jsonb)
+    ON CONFLICT (household_id) DO UPDATE SET milestones = EXCLUDED.milestones, updated_at = NOW()`;
 }

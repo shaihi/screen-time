@@ -7,6 +7,7 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname === "/login" ||
     request.nextUrl.pathname.startsWith("/api/auth/login") ||
     request.nextUrl.pathname.startsWith("/api/ingest") ||
+    request.nextUrl.pathname.startsWith("/api/agent/") ||
     request.nextUrl.pathname.startsWith("/api/health")
   ) {
     return NextResponse.next();

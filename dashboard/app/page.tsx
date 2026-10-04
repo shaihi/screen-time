@@ -10,6 +10,7 @@ import { UsageModeProvider } from "@/app/components/usage-mode";
 import { RangeShell } from "@/app/components/range-shell";
 import { SessionsPanel } from "@/app/components/sessions-panel";
 import { Timeline, TimelineLegend } from "@/app/components/timeline";
+import { RemindersPanel } from "@/app/components/reminders-panel";
 import { formatLastSeen } from "@/lib/format";
 import { getHouseholdById } from "@/lib/households";
 import { parseRange, rangeLabels } from "@/lib/range";
@@ -75,6 +76,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
       wide: true,
       content: <OverlapsPanel overlaps={summary?.overlaps || []} timeZone={timeZone} showDate={showDate} />,
     },
+    { id: "reminders", title: "Usage reminders", wide: false, content: <RemindersPanel householdId={household?.id ?? null} /> },
   ];
 
   return (

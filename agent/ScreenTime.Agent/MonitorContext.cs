@@ -13,15 +13,20 @@ internal sealed class MonitorContext : ApplicationContext
     private readonly MinuteAggregator _aggregator = new();
     private readonly UploadQueue _uploads;
     private readonly UpdateChecker _updates = new();
+    private readonly UsageReminderStore _reminderStore;
+    private readonly DailyUsageReminder _usageReminder;
+    private readonly ReminderPolicyClient _policyClient;
     private readonly NotifyIcon _tray;
     private readonly System.Windows.Forms.Timer _sampleTimer;
     private readonly System.Windows.Forms.Timer _uploadTimer;
     private readonly System.Windows.Forms.Timer _updateTimer;
+    private readonly System.Windows.Forms.Timer _policyTimer;
     private static readonly TimeSpan ShutdownUploadTimeout = TimeSpan.FromSeconds(4);
     private readonly object _aggregatorLock = new();
     private bool _sampling;
     private int _checkingForUpdates;
     private int _installingUpdate;
+    private bool _updateInstallPromptVisible;
     private volatile bool _stopping;
     private DateTimeOffset? _pausedUntil;
     private UpdateManifest? _availableUpdate;
@@ -30,6 +35,9 @@ internal sealed class MonitorContext : ApplicationContext
     {
         _config = config;
         _uploads = new UploadQueue(config);
+        _reminderStore = new UsageReminderStore();
+        _usageReminder = new DailyUsageReminder(_reminderStore.LoadPolicy() ?? UsageReminderPolicy.Disabled, _reminderStore.LoadState());
+        _policyClient = new ReminderPolicyClient(config);
         var menu = new ContextMenuStrip();
         menu.Items.Add("Send now", null, async (_, _) => await SendNowAsync());
         menu.Items.Add("Pause for 30 minutes", null, (_, _) => Pause(TimeSpan.FromMinutes(30)));
@@ -56,12 +64,16 @@ internal sealed class MonitorContext : ApplicationContext
         _uploadTimer.Tick += async (_, _) => await SendNowAsync();
         _updateTimer = new System.Windows.Forms.Timer { Interval = DailyUpdateIntervalMilliseconds };
         _updateTimer.Tick += async (_, _) => await CheckForUpdatesAsync(manual: false);
+        _policyTimer = new System.Windows.Forms.Timer { Interval = 15 * 60 * 1000 };
+        _policyTimer.Tick += async (_, _) => await RefreshReminderPolicyAsync();
         _sampleTimer.Start();
         _uploadTimer.Start();
         _updateTimer.Start();
+        _policyTimer.Start();
         SystemEvents.SessionEnding += OnSessionEnding;
         Application.Idle += OnApplicationIdle;
         _ = SampleAsync();
+        _ = RefreshReminderPolicyAsync();
     }
 
     private void OnApplicationIdle(object? sender, EventArgs e)
@@ -82,9 +94,13 @@ internal sealed class MonitorContext : ApplicationContext
                 _config.IdleThresholdSeconds,
                 _config.CollectPageTitles);
             if (_stopping) return;
+            var observedAt = DateTimeOffset.UtcNow;
             IReadOnlyList<ActivitySample> completed;
-            lock (_aggregatorLock) completed = _aggregator.Observe(DateTimeOffset.UtcNow, classification, _config.SampleIntervalSeconds);
+            lock (_aggregatorLock) completed = _aggregator.Observe(observedAt, classification, _config.SampleIntervalSeconds);
             if (completed.Count > 0) _uploads.Enqueue(completed);
+            var reminder = _usageReminder.Observe(observedAt, classification.State, _config.SampleIntervalSeconds);
+            if (completed.Count > 0 || reminder is not null) _reminderStore.SaveState(_usageReminder.Snapshot());
+            if (reminder is not null) ShowUsageReminder(reminder);
             UpdateTooltip(classification.State.ToString());
         }
         catch { UpdateTooltip("Temporary sensor error"); }
@@ -127,6 +143,31 @@ internal sealed class MonitorContext : ApplicationContext
         UpdateTooltip("Paused for 30 minutes");
     }
 
+    private async Task RefreshReminderPolicyAsync()
+    {
+        try
+        {
+            var policy = await _policyClient.FetchAsync();
+            if (policy is null) return;
+            _usageReminder.UpdatePolicy(policy);
+            _reminderStore.SavePolicy(policy);
+        }
+        catch { /* Continue using the last locally cached policy. */ }
+    }
+
+    private void ShowUsageReminder(UsageNotification notification)
+    {
+        var duration = TimeSpan.FromSeconds(notification.ActualUseSeconds);
+        var text = duration.Hours > 0 ? $"{duration.Hours}h {duration.Minutes}m" : $"{duration.Minutes}m";
+        ShowBalloon("Screen Time reminder", $"You have used {text} today.", notification.Severity switch
+        {
+            ReminderSeverity.Information => ToolTipIcon.Info,
+            ReminderSeverity.Warning => ToolTipIcon.Warning,
+            ReminderSeverity.Error => ToolTipIcon.Error,
+            _ => ToolTipIcon.None,
+        });
+    }
+
     private void UpdateTooltip(string status)
     {
         var text = $"Screen Time {DisplayVersion} — {status}";
@@ -159,13 +200,15 @@ internal sealed class MonitorContext : ApplicationContext
         ShowBalloon(
             "Screen Time update available",
             $"Screen Time {manifest.Version} is available — click to install.",
-            ToolTipIcon.Info);
+            ToolTipIcon.Info,
+            opensUpdateInstaller: true);
     }
 
     private async void OnBalloonTipClicked(object? sender, EventArgs e)
     {
-        if (_availableUpdate is null || _stopping ||
+        if (!_updateInstallPromptVisible || _availableUpdate is null || _stopping ||
             Interlocked.CompareExchange(ref _installingUpdate, 1, 0) != 0) return;
+        _updateInstallPromptVisible = false;
         UpdateTooltip("Installing update");
         try
         {
@@ -185,8 +228,9 @@ internal sealed class MonitorContext : ApplicationContext
         }
     }
 
-    private void ShowBalloon(string title, string text, ToolTipIcon icon)
+    private void ShowBalloon(string title, string text, ToolTipIcon icon, bool opensUpdateInstaller = false)
     {
+        _updateInstallPromptVisible = opensUpdateInstaller;
         _tray.BalloonTipTitle = title;
         _tray.BalloonTipText = text;
         _tray.BalloonTipIcon = icon;
@@ -203,10 +247,12 @@ internal sealed class MonitorContext : ApplicationContext
         _uploadTimer.Stop();
         _updateTimer.Stop();
         Application.Idle -= OnApplicationIdle;
+        _policyTimer.Stop();
         SystemEvents.SessionEnding -= OnSessionEnding;
         _updates.UpdateAvailable -= OnUpdateAvailable;
         _tray.BalloonTipClicked -= OnBalloonTipClicked;
         _stopping = true;
+        _reminderStore.SaveState(_usageReminder.Snapshot());
         FlushAndUpload();
         _tray.Visible = false;
         _tray.Dispose();
