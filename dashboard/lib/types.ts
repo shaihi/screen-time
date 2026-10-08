@@ -22,6 +22,8 @@ export type DashboardSummary = {
   timeZone: string;
   deviceId: string;
   lastSeenAt: string | null;
+  /** Number of calendar days represented by this range, including today. */
+  daysInRange: number;
   activeSeconds: number;
   mediaSeconds: number;
   idleSeconds: number;

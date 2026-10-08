@@ -1,5 +1,5 @@
 import { database, ensureSchema } from "@/lib/db";
-import { rangeStartSql, type RangeKey } from "@/lib/range";
+import { daysBetween, rangeStartSql, type RangeKey } from "@/lib/range";
 import { buildOverlaps, buildSessions, mergeSessionKinds, type MinuteUsage } from "@/lib/sessions";
 import { systemAppNames } from "@/lib/system-apps";
 import { cleanPageTitle } from "@/lib/page-title";
@@ -149,6 +149,7 @@ export async function getSummary(range: RangeKey, householdId: string, deviceIds
     timeZone,
     deviceId,
     lastSeenAt: totals[0].last_seen_at,
+    daysInRange: daysBetween(bounds.start_day, bounds.today).length,
     activeSeconds: Number(totals[0].active_seconds),
     mediaSeconds: Number(totals[0].media_seconds),
     idleSeconds: Number(totals[0].idle_seconds),

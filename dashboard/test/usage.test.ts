@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { headline, usageBreakdown } from "../lib/usage.ts";
+import { averagePerDay, headline, usageBreakdown } from "../lib/usage.ts";
 
 const totals = { activeSeconds: 3000, mediaSeconds: 600, idleSeconds: 5400, leftRunningSeconds: 4000 };
 
@@ -35,4 +35,14 @@ test("the unattended switch changes the headline number and its share", () => {
   const usage = usageBreakdown(totals);
   assert.deepEqual(headline(usage, false), { seconds: 3600, percent: 40, label: "real use" });
   assert.deepEqual(headline(usage, true), { seconds: 7600, percent: 84, label: "real use + unattended" });
+});
+
+test("daily average uses each elapsed calendar day and rounds to the nearest second", () => {
+  assert.equal(averagePerDay(10_801, 3), 3_600);
+  assert.equal(averagePerDay(10_802, 3), 3_601);
+});
+
+test("daily average stays safe when the day count or usage is missing", () => {
+  assert.equal(averagePerDay(0, 4), 0);
+  assert.equal(averagePerDay(3_600, 0), 0);
 });

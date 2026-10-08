@@ -43,3 +43,9 @@ export function headline(usage: UsageBreakdown, includeUnattended: boolean) {
     label: includeUnattended ? "real use + unattended" : "real use",
   };
 }
+
+/** Average a range total over its elapsed calendar days. */
+export function averagePerDay(totalSeconds: number, days: number) {
+  if (totalSeconds <= 0 || days <= 0) return 0;
+  return Math.round(totalSeconds / days);
+}
