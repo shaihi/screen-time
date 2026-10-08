@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { categories, categoryOf } from "../lib/categories.ts";
-import { averageLinePosition, buildTimelinePoints } from "../lib/timeline.ts";
+import { averageLinePosition, buildTimelinePoints, realUseForPoint } from "../lib/timeline.ts";
 
 test("known apps map to their category", () => {
   assert.equal(categoryOf("Roblox"), "gaming");
@@ -58,4 +58,13 @@ test("weekly average line is positioned against the tallest day and stays in the
   assert.equal(averageLinePosition(18_000, 14_400), 100);
   assert.equal(averageLinePosition(0, 14_400), 0);
   assert.equal(averageLinePosition(3_600, 0), 0);
+});
+
+test("daily usage labels include active and media time but exclude idle time", () => {
+  const [point] = buildTimelinePoints("week", { startDay: "2026-09-13", today: "2026-09-13" }, [
+    { bucket: "2026-09-13", state: "active", app: "Google Chrome", seconds: 3_000 },
+    { bucket: "2026-09-13", state: "media", app: "Google Chrome", seconds: 600 },
+    { bucket: "2026-09-13", state: "idle", app: "Google Chrome", seconds: 2_400 },
+  ]);
+  assert.equal(realUseForPoint(point), 3_600);
 });

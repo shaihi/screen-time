@@ -68,7 +68,8 @@ export async function getSummary(range: RangeKey, householdId: string, deviceIds
       ? `SELECT (${weekStart} + $2::int * interval '7 days')::text AS start_at,
           LEAST(NOW(), ${weekStart} + ($2::int + 1) * interval '7 days')::text AS end_at,
           ((${weekStart} + $2::int * interval '7 days') AT TIME ZONE $1)::date::text AS start_day,
-          ((${weekStart} + $2::int * interval '7 days' + interval '6 days') AT TIME ZONE $1)::date::text AS today`
+          CASE WHEN $2::int = 0 THEN (NOW() AT TIME ZONE $1)::date::text
+            ELSE ((${weekStart} + $2::int * interval '7 days' + interval '6 days') AT TIME ZONE $1)::date::text END AS today`
       : `SELECT ${rangeStartSql(range)}::text AS start_at,
           NOW()::text AS end_at,
           (${rangeStartSql(range)} AT TIME ZONE $1)::date::text AS start_day,

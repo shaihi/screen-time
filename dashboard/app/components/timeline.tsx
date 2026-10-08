@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { categoryLabels } from "@/lib/categories";
 import { formatDuration, formatShortDuration } from "@/lib/format";
-import { averageLinePosition } from "@/lib/timeline";
+import { averageLinePosition, realUseForPoint } from "@/lib/timeline";
 import type { TimelinePoint } from "@/lib/types";
 
 type Hovered = { column: number; segment: number | "idle" };
@@ -89,7 +89,12 @@ export function Timeline({ points, label, averageSeconds }: { points: TimelinePo
         ) : null}
       </div>
       <div className="timeline-labels" style={gridStyle}>
-        {points.map((point) => <small key={point.key}>{point.label || " "}</small>)}
+        {points.map((point) => (
+          <small className="timeline-label" key={point.key}>
+            <span>{point.label || " "}</span>
+            {averageSeconds !== undefined ? <b>{formatDuration(realUseForPoint(point))}</b> : null}
+          </small>
+        ))}
       </div>
     </div>
   );

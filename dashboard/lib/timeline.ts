@@ -27,6 +27,11 @@ export function averageLinePosition(averageSeconds: number, maximumSeconds: numb
   return Math.min(100, (averageSeconds / maximumSeconds) * 100);
 }
 
+/** Usage means active plus media; idle time remains visible in the bar but is not screen time. */
+export function realUseForPoint(point: TimelinePoint) {
+  return point.segments.reduce((sum, segment) => sum + segment.seconds, 0);
+}
+
 function emptyPoints(range: RangeKey, startDay: string, today: string) {
   if (range === "day") {
     return Array.from({ length: 24 }, (_, hour) => {
