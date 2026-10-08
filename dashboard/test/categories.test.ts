@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { categories, categoryOf } from "../lib/categories.ts";
-import { buildTimelinePoints } from "../lib/timeline.ts";
+import { averageLinePosition, buildTimelinePoints } from "../lib/timeline.ts";
 
 test("known apps map to their category", () => {
   assert.equal(categoryOf("Roblox"), "gaming");
@@ -51,4 +51,11 @@ test("week points are one per day", () => {
   assert.deepEqual(points.map((point) => point.key), ["2026-09-13", "2026-09-14", "2026-09-15"]);
   assert.deepEqual(points[1].segments, [{ app: "Discord", category: "social", seconds: 20 }]);
   assert.match(points[1].title, /^Mon 14 Sept?$/);
+});
+
+test("weekly average line is positioned against the tallest day and stays in the chart", () => {
+  assert.equal(averageLinePosition(7_200, 14_400), 50);
+  assert.equal(averageLinePosition(18_000, 14_400), 100);
+  assert.equal(averageLinePosition(0, 14_400), 0);
+  assert.equal(averageLinePosition(3_600, 0), 0);
 });

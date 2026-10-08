@@ -21,6 +21,12 @@ export type TimelinePoint = {
 /** `app` is null for time that has no listed app (system or hidden apps). */
 export type TimelineRow = { bucket: string; state: string; app: string | null; seconds: number };
 
+/** Percentage from the chart baseline for an average-use marker. */
+export function averageLinePosition(averageSeconds: number, maximumSeconds: number) {
+  if (averageSeconds <= 0 || maximumSeconds <= 0) return 0;
+  return Math.min(100, (averageSeconds / maximumSeconds) * 100);
+}
+
 function emptyPoints(range: RangeKey, startDay: string, today: string) {
   if (range === "day") {
     return Array.from({ length: 24 }, (_, hour) => {

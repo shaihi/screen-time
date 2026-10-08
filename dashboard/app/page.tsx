@@ -13,29 +13,42 @@ import { Timeline, TimelineLegend } from "@/app/components/timeline";
 import { RemindersPanel } from "@/app/components/reminders-panel";
 import { formatLastSeen } from "@/lib/format";
 import { getHouseholdById } from "@/lib/households";
-import { parseRange, rangeLabels } from "@/lib/range";
+import { parseRange, parseWeekOffset, rangeLabels } from "@/lib/range";
 import { householdIdHeader } from "@/lib/session";
 import { getSummary } from "@/lib/summary";
+import { averagePerDay } from "@/lib/usage";
 
 import { agentOfflineAfterMinutes } from "@/lib/system-apps";
 
 export const dynamic = "force-dynamic";
+
+function eyebrowFor(range: ReturnType<typeof parseRange>, weekOffset: number, startDay: string | undefined) {
+  if (range !== "week" || weekOffset === 0) return rangeLabels[range].eyebrow;
+  if (!startDay) return "PAST WEEK";
+  const start = new Date(`${startDay}T00:00:00Z`);
+  return `WEEK OF ${start.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toUpperCase()}`;
+}
 
 function isOnline(lastSeenAt: string | null) {
   if (!lastSeenAt) return false;
   return Date.now() - new Date(lastSeenAt).getTime() < agentOfflineAfterMinutes * 60_000;
 }
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ range?: string | string[] }> }) {
-  const range = parseRange((await searchParams).range);
+export default async function Home({ searchParams }: { searchParams: Promise<{ range?: string | string[]; weekOffset?: string | string[] }> }) {
+  const params = await searchParams;
+  const range = parseRange(params.range);
+  const weekOffset = range === "week" ? parseWeekOffset(params.weekOffset) : 0;
   // proxy.ts (the auth middleware) has already verified the session and set this header;
   // it's never trusted from an unauthenticated request since proxy.ts gates every route.
   const householdId = (await headers()).get(householdIdHeader);
   const household = householdId ? getHouseholdById(householdId) : null;
-  const summary = household ? await getSummary(range, household.id, household.deviceIds) : null;
+  const summary = household ? await getSummary(range, household.id, household.deviceIds, weekOffset) : null;
   const online = isOnline(summary?.lastSeenAt || null);
   const timeZone = summary?.timeZone || "UTC";
   const showDate = range !== "day";
+  const weeklyAverage = summary && range === "week"
+    ? averagePerDay(summary.activeSeconds + summary.mediaSeconds, summary.daysInRange)
+    : undefined;
 
   const panels: BoardPanel[] = [
     { id: "metrics", title: "Real usage", wide: true, plain: true, content: <MetricsPanel summary={summary} /> },
@@ -50,7 +63,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
             {summary ? <TimelineLegend points={summary.timeline} /> : null}
           </div>
           {summary
-            ? <Timeline points={summary.timeline} label={range === "day" ? "Usage by hour" : "Usage by day"} />
+            ? <Timeline points={summary.timeline} label={range === "day" ? "Usage by hour" : "Usage by day"} averageSeconds={weeklyAverage} />
             : <p className="empty">No activity yet.</p>}
         </>
       ),
@@ -88,10 +101,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
       </header>
 
       <UsageModeProvider>
-      <RangeShell range={range}>
+      <RangeShell range={range} weekOffset={weekOffset}>
       <section className="hero">
         <div>
-          <p className="eyebrow">{rangeLabels[range].eyebrow} · {summary?.deviceId || "WAITING FOR DEVICE"}</p>
+          <p className="eyebrow">{eyebrowFor(range, weekOffset, summary?.rangeStartDay)} · {summary?.deviceId || "WAITING FOR DEVICE"}</p>
           <UsageHero summary={summary} />
         </div>
         <div className="connection">

@@ -22,6 +22,8 @@ export type DashboardSummary = {
   timeZone: string;
   deviceId: string;
   lastSeenAt: string | null;
+  /** Local ISO date on which the selected range begins. */
+  rangeStartDay: string;
   /** Number of calendar days represented by this range, including today. */
   daysInRange: number;
   activeSeconds: number;

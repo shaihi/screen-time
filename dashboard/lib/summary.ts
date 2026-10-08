@@ -14,7 +14,7 @@ const MAX_PAGE_VISITS = 300;
 const MAX_PAGE_TOTALS = 100;
 const TOP_APPS = 8;
 
-type Bounds = { start_at: string; start_day: string; today: string };
+type Bounds = { start_at: string; end_at: string; start_day: string; today: string };
 
 type TotalsRow = {
   device_id: string;
@@ -43,8 +43,8 @@ const hiddenAppCondition = (names: string, household: string) => `(app_name IS N
   OR EXISTS (SELECT 1 FROM excluded_apps excluded
     WHERE excluded.app_name = activity_segments.app_name AND excluded.household_id = ${household}))`;
 
-// Rows that should appear as named apps. Queries using it take [deviceId, rangeStart, systemNames, householdId].
-const visibleAppFilter = `device_id = $1 AND started_at >= $2::timestamptz AND NOT ${hiddenAppCondition("$3", "$4")}`;
+// Rows that should appear as named apps. Queries using it take [deviceId, rangeStart, rangeEnd, systemNames, householdId].
+const visibleAppFilter = `device_id = $1 AND started_at >= $2::timestamptz AND started_at < $3::timestamptz AND NOT ${hiddenAppCondition("$4", "$5")}`;
 
 const toMinuteUsage = (row: MinuteRow): MinuteUsage => ({
   startedAt: new Date(Number(row.epoch) * 1000).toISOString(),
@@ -52,7 +52,7 @@ const toMinuteUsage = (row: MinuteRow): MinuteUsage => ({
   seconds: Number(row.seconds),
 });
 
-export async function getSummary(range: RangeKey, householdId: string, deviceIds: string[]): Promise<DashboardSummary | null> {
+export async function getSummary(range: RangeKey, householdId: string, deviceIds: string[], weekOffset = 0): Promise<DashboardSummary | null> {
   if (!process.env.DATABASE_URL) return null;
   if (deviceIds.length === 0) return null;
   await ensureSchema();
@@ -62,11 +62,18 @@ export async function getSummary(range: RangeKey, householdId: string, deviceIds
   // that as a value, so it's handled as "no device filter" instead of a real ANY() match.
   const ownsAllDevices = deviceIds.includes("*");
 
+  const weekStart = rangeStartSql("week");
   const [bounds] = await sql.query(
-    `SELECT ${rangeStartSql(range)}::text AS start_at,
-      (${rangeStartSql(range)} AT TIME ZONE $1)::date::text AS start_day,
-      (NOW() AT TIME ZONE $1)::date::text AS today`,
-    [timeZone],
+    range === "week"
+      ? `SELECT (${weekStart} + $2::int * interval '7 days')::text AS start_at,
+          LEAST(NOW(), ${weekStart} + ($2::int + 1) * interval '7 days')::text AS end_at,
+          ((${weekStart} + $2::int * interval '7 days') AT TIME ZONE $1)::date::text AS start_day,
+          ((${weekStart} + $2::int * interval '7 days' + interval '6 days') AT TIME ZONE $1)::date::text AS today`
+      : `SELECT ${rangeStartSql(range)}::text AS start_at,
+          NOW()::text AS end_at,
+          (${rangeStartSql(range)} AT TIME ZONE $1)::date::text AS start_day,
+          (NOW() AT TIME ZONE $1)::date::text AS today`,
+    range === "week" ? [timeZone, weekOffset] : [timeZone],
   ) as Bounds[];
 
   const totals = await sql.query(
@@ -76,13 +83,13 @@ export async function getSummary(range: RangeKey, householdId: string, deviceIds
       COALESCE(SUM(duration_seconds) FILTER (WHERE state = 'idle'), 0)::text AS idle_seconds,
       COALESCE(SUM(duration_seconds) FILTER (WHERE state = 'locked'), 0)::text AS locked_seconds
     FROM activity_segments
-    WHERE started_at >= $1::timestamptz AND (${ownsAllDevices ? "TRUE" : "device_id = ANY($2)"})
+    WHERE started_at >= $1::timestamptz AND started_at < $2::timestamptz AND (${ownsAllDevices ? "TRUE" : "device_id = ANY($3)"})
     GROUP BY device_id ORDER BY MAX(received_at) DESC LIMIT 1`,
-    ownsAllDevices ? [bounds.start_at] : [bounds.start_at, deviceIds],
+    ownsAllDevices ? [bounds.start_at, bounds.end_at] : [bounds.start_at, bounds.end_at, deviceIds],
   ) as TotalsRow[];
   if (!totals[0]) return null;
   const deviceId = totals[0].device_id;
-  const appParams = [deviceId, bounds.start_at, systemNamesParam(), householdId];
+  const appParams = [deviceId, bounds.start_at, bounds.end_at, systemNamesParam(), householdId];
 
   const [timelineRows, apps, foregroundRows, backgroundRows, hiddenApps, pageRows, idleRows] = await Promise.all([
     rows<TimelineRow>(sql.query(
@@ -90,12 +97,12 @@ export async function getSummary(range: RangeKey, householdId: string, deviceIds
         ? "EXTRACT(HOUR FROM started_at AT TIME ZONE $1)::int::text"
         : "(started_at AT TIME ZONE $1)::date::text"} AS bucket,
         state,
-        CASE WHEN ${hiddenAppCondition("$4", "$5")} THEN NULL ELSE app_name END AS app,
+        CASE WHEN ${hiddenAppCondition("$5", "$6")} THEN NULL ELSE app_name END AS app,
         SUM(duration_seconds)::int AS seconds
       FROM activity_segments
-      WHERE device_id = $2 AND started_at >= $3::timestamptz AND state IN ('active', 'media', 'idle')
+      WHERE device_id = $2 AND started_at >= $3::timestamptz AND started_at < $4::timestamptz AND state IN ('active', 'media', 'idle')
       GROUP BY 1, 2, 3`,
-      [timeZone, deviceId, bounds.start_at, systemNamesParam(), householdId],
+      [timeZone, deviceId, bounds.start_at, bounds.end_at, systemNamesParam(), householdId],
     )),
     rows<{ name: string; seconds: number }>(sql.query(
       `SELECT app_name AS name, SUM(duration_seconds)::int AS seconds
@@ -122,10 +129,10 @@ export async function getSummary(range: RangeKey, householdId: string, deviceIds
     rows<PageRow>(sql.query(
       `SELECT EXTRACT(EPOCH FROM started_at)::float8 AS epoch, app_name, page_title, duration_seconds AS seconds
       FROM page_visits
-      WHERE device_id = $1 AND started_at >= $2::timestamptz
+      WHERE device_id = $1 AND started_at >= $2::timestamptz AND started_at < $3::timestamptz
         AND NOT EXISTS (SELECT 1 FROM excluded_apps excluded
-          WHERE excluded.app_name = page_visits.app_name AND excluded.household_id = $3)`,
-      [deviceId, bounds.start_at, householdId],
+          WHERE excluded.app_name = page_visits.app_name AND excluded.household_id = $4)`,
+      [deviceId, bounds.start_at, bounds.end_at, householdId],
     )),
     rows<MinuteRow>(sql.query(
       `SELECT EXTRACT(EPOCH FROM started_at)::float8 AS epoch, app_name, SUM(duration_seconds)::int AS seconds
@@ -149,6 +156,7 @@ export async function getSummary(range: RangeKey, householdId: string, deviceIds
     timeZone,
     deviceId,
     lastSeenAt: totals[0].last_seen_at,
+    rangeStartDay: bounds.start_day,
     daysInRange: daysBetween(bounds.start_day, bounds.today).length,
     activeSeconds: Number(totals[0].active_seconds),
     mediaSeconds: Number(totals[0].media_seconds),

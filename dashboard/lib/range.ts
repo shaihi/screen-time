@@ -11,6 +11,13 @@ export function parseRange(value: unknown): RangeKey {
   return rangeKeys.includes(value as RangeKey) ? (value as RangeKey) : "day";
 }
 
+/** Past weekly windows are addressed by a negative number of whole weeks. */
+export function parseWeekOffset(value: unknown) {
+  if (typeof value !== "string" || !/^-?\d+$/.test(value)) return 0;
+  const offset = Number(value);
+  return Number.isSafeInteger(offset) && offset >= -520 && offset <= 0 ? offset : 0;
+}
+
 /**
  * SQL for the local start of the range as timestamptz; `$1` is the display time zone.
  * Weeks start on Sunday. Only these fixed strings are ever interpolated into queries.
