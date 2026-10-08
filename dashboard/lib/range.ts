@@ -18,6 +18,13 @@ export function parseWeekOffset(value: unknown) {
   return Number.isSafeInteger(offset) && offset >= -520 && offset <= 0 ? offset : 0;
 }
 
+/** Past monthly windows are addressed by a negative number of whole months. */
+export function parseMonthOffset(value: unknown) {
+  if (typeof value !== "string" || !/^-?\d+$/.test(value)) return 0;
+  const offset = Number(value);
+  return Number.isSafeInteger(offset) && offset >= -120 && offset <= 0 ? offset : 0;
+}
+
 /**
  * SQL for the local start of the range as timestamptz; `$1` is the display time zone.
  * Weeks start on Sunday. Only these fixed strings are ever interpolated into queries.

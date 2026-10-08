@@ -4,14 +4,14 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 import { rangeKeys, rangeLabels, type RangeKey } from "@/lib/range";
 
-const hrefFor = (key: RangeKey, weekOffset = 0) => {
+const hrefFor = (key: RangeKey, offset = 0) => {
   if (key === "day") return "/";
-  if (key === "week" && weekOffset) return `/?range=week&weekOffset=${weekOffset}`;
+  if (offset) return `/?range=${key}&${key}Offset=${offset}`;
   return `/?range=${key}`;
 };
 
 /** Range tabs that highlight immediately and dim the page until the new range has loaded. */
-export function RangeShell({ range, weekOffset, children }: { range: RangeKey; weekOffset: number; children: ReactNode }) {
+export function RangeShell({ range, weekOffset, monthOffset, children }: { range: RangeKey; weekOffset: number; monthOffset: number; children: ReactNode }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [requested, setRequested] = useState<RangeKey | null>(null);
@@ -23,10 +23,14 @@ export function RangeShell({ range, weekOffset, children }: { range: RangeKey; w
     startTransition(() => router.push(hrefFor(key), { scroll: false }));
   }
 
-  function selectWeek(offset: number) {
-    setRequested("week");
-    startTransition(() => router.push(hrefFor("week", offset), { scroll: false }));
+  function selectPastRange(key: "week" | "month", offset: number) {
+    setRequested(key);
+    startTransition(() => router.push(hrefFor(key, offset), { scroll: false }));
   }
+
+  const isHistoricalRange = range === "week" || range === "month";
+  const offset = range === "week" ? weekOffset : monthOffset;
+  const unit = range === "week" ? "week" : "month";
 
   return (
     <>
@@ -48,12 +52,12 @@ export function RangeShell({ range, weekOffset, children }: { range: RangeKey; w
           </a>
         ))}
       </nav>
-      {range === "week" ? (
-        <nav className="week-navigation" aria-label="Week navigation">
-          <button type="button" onClick={() => selectWeek(weekOffset - 1)} disabled={pending}>← Previous week</button>
-          {weekOffset < 0
-            ? <button type="button" onClick={() => selectWeek(weekOffset + 1)} disabled={pending}>Next week →</button>
-            : <span>This week</span>}
+      {isHistoricalRange ? (
+        <nav className="range-navigation" aria-label={`${unit[0].toUpperCase()}${unit.slice(1)} navigation`}>
+          <button type="button" onClick={() => selectPastRange(range, offset - 1)} disabled={pending}>← Previous {unit}</button>
+          {offset < 0
+            ? <button type="button" onClick={() => selectPastRange(range, offset + 1)} disabled={pending}>Next {unit} →</button>
+            : <span>This {unit}</span>}
         </nav>
       ) : null}
       <div className={pending ? "range-content loading" : "range-content"} aria-busy={pending}>

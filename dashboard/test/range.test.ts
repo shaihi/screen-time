@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { dayLabel, daysBetween, parseRange, parseWeekOffset, rangeStartSql } from "../lib/range.ts";
+import { dayLabel, daysBetween, parseMonthOffset, parseRange, parseWeekOffset, rangeStartSql } from "../lib/range.ts";
 
 test("parseRange accepts known ranges and defaults to day", () => {
   assert.equal(parseRange("week"), "week");
@@ -18,6 +18,15 @@ test("parseWeekOffset accepts past weeks only and keeps requests bounded", () =>
   assert.equal(parseWeekOffset("1"), 0);
   assert.equal(parseWeekOffset("-521"), 0);
   assert.equal(parseWeekOffset(["-1"]), 0);
+});
+
+test("parseMonthOffset accepts past months only and keeps requests bounded", () => {
+  assert.equal(parseMonthOffset(undefined), 0);
+  assert.equal(parseMonthOffset("0"), 0);
+  assert.equal(parseMonthOffset("-1"), -1);
+  assert.equal(parseMonthOffset("-120"), -120);
+  assert.equal(parseMonthOffset("1"), 0);
+  assert.equal(parseMonthOffset("-121"), 0);
 });
 
 test("rangeStartSql only references the time zone parameter", () => {

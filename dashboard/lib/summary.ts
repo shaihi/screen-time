@@ -52,7 +52,7 @@ const toMinuteUsage = (row: MinuteRow): MinuteUsage => ({
   seconds: Number(row.seconds),
 });
 
-export async function getSummary(range: RangeKey, householdId: string, deviceIds: string[], weekOffset = 0): Promise<DashboardSummary | null> {
+export async function getSummary(range: RangeKey, householdId: string, deviceIds: string[], weekOffset = 0, monthOffset = 0): Promise<DashboardSummary | null> {
   if (!process.env.DATABASE_URL) return null;
   if (deviceIds.length === 0) return null;
   await ensureSchema();
@@ -62,19 +62,22 @@ export async function getSummary(range: RangeKey, householdId: string, deviceIds
   // that as a value, so it's handled as "no device filter" instead of a real ANY() match.
   const ownsAllDevices = deviceIds.includes("*");
 
-  const weekStart = rangeStartSql("week");
+  const historicalRange = range === "week" || range === "month";
+  const rangeStart = rangeStartSql(range);
+  const interval = range === "week" ? "7 days" : "1 month";
+  const rangeOffset = range === "week" ? weekOffset : monthOffset;
   const [bounds] = await sql.query(
-    range === "week"
-      ? `SELECT (${weekStart} + $2::int * interval '7 days')::text AS start_at,
-          LEAST(NOW(), ${weekStart} + ($2::int + 1) * interval '7 days')::text AS end_at,
-          ((${weekStart} + $2::int * interval '7 days') AT TIME ZONE $1)::date::text AS start_day,
+    historicalRange
+      ? `SELECT (${rangeStart} + $2::int * interval '${interval}')::text AS start_at,
+          LEAST(NOW(), ${rangeStart} + ($2::int + 1) * interval '${interval}')::text AS end_at,
+          ((${rangeStart} + $2::int * interval '${interval}') AT TIME ZONE $1)::date::text AS start_day,
           CASE WHEN $2::int = 0 THEN (NOW() AT TIME ZONE $1)::date::text
-            ELSE ((${weekStart} + $2::int * interval '7 days' + interval '6 days') AT TIME ZONE $1)::date::text END AS today`
-      : `SELECT ${rangeStartSql(range)}::text AS start_at,
+            ELSE ((${rangeStart} + ($2::int + 1) * interval '${interval}' - interval '1 day') AT TIME ZONE $1)::date::text END AS today`
+      : `SELECT ${rangeStart}::text AS start_at,
           NOW()::text AS end_at,
-          (${rangeStartSql(range)} AT TIME ZONE $1)::date::text AS start_day,
+          (${rangeStart} AT TIME ZONE $1)::date::text AS start_day,
           (NOW() AT TIME ZONE $1)::date::text AS today`,
-    range === "week" ? [timeZone, weekOffset] : [timeZone],
+    historicalRange ? [timeZone, rangeOffset] : [timeZone],
   ) as Bounds[];
 
   const totals = await sql.query(

@@ -30,15 +30,17 @@ export function Timeline({ points, label, averageSeconds }: { points: TimelinePo
   const height = (seconds: number) => `${(seconds / max) * 100}%`;
   const averagePosition = averageSeconds === undefined ? null : averageLinePosition(averageSeconds, max);
   const gridStyle = { gridTemplateColumns: `repeat(${points.length}, 1fr)` };
+  const dense = averageSeconds !== undefined && points.length > 7;
 
   return (
-    <div
-      ref={chart}
-      className="timeline"
-      role="img"
-      aria-label={averageSeconds === undefined ? label : `${label}; average use ${formatDuration(averageSeconds)}`}
-      onPointerLeave={(event) => { if (event.pointerType === "mouse") setHovered(null); }}
-    >
+    <div className={dense ? "timeline-scroll dense" : "timeline-scroll"}>
+      <div
+        ref={chart}
+        className="timeline"
+        role="img"
+        aria-label={averageSeconds === undefined ? label : `${label}; average use ${formatDuration(averageSeconds)}`}
+        onPointerLeave={(event) => { if (event.pointerType === "mouse") setHovered(null); }}
+      >
       <div className="timeline-plot">
         <div className="timeline-bars" style={gridStyle}>
           {points.map((point, column) => {
@@ -95,6 +97,7 @@ export function Timeline({ points, label, averageSeconds }: { points: TimelinePo
             {averageSeconds !== undefined ? <b>{formatDuration(realUseForPoint(point))}</b> : null}
           </small>
         ))}
+      </div>
       </div>
     </div>
   );

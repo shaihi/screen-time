@@ -13,7 +13,7 @@ import { Timeline, TimelineLegend } from "@/app/components/timeline";
 import { RemindersPanel } from "@/app/components/reminders-panel";
 import { formatLastSeen } from "@/lib/format";
 import { getHouseholdById } from "@/lib/households";
-import { parseRange, parseWeekOffset, rangeLabels } from "@/lib/range";
+import { parseMonthOffset, parseRange, parseWeekOffset, rangeLabels } from "@/lib/range";
 import { householdIdHeader } from "@/lib/session";
 import { getSummary } from "@/lib/summary";
 import { averagePerDay } from "@/lib/usage";
@@ -22,10 +22,13 @@ import { agentOfflineAfterMinutes } from "@/lib/system-apps";
 
 export const dynamic = "force-dynamic";
 
-function eyebrowFor(range: ReturnType<typeof parseRange>, weekOffset: number, startDay: string | undefined) {
-  if (range !== "week" || weekOffset === 0) return rangeLabels[range].eyebrow;
-  if (!startDay) return "PAST WEEK";
+function eyebrowFor(range: ReturnType<typeof parseRange>, offset: number, startDay: string | undefined) {
+  if (range === "day" || offset === 0) return rangeLabels[range].eyebrow;
+  if (!startDay) return range === "week" ? "PAST WEEK" : "PAST MONTH";
   const start = new Date(`${startDay}T00:00:00Z`);
+  if (range === "month") {
+    return start.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).toUpperCase();
+  }
   return `WEEK OF ${start.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toUpperCase()}`;
 }
 
@@ -34,19 +37,20 @@ function isOnline(lastSeenAt: string | null) {
   return Date.now() - new Date(lastSeenAt).getTime() < agentOfflineAfterMinutes * 60_000;
 }
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ range?: string | string[]; weekOffset?: string | string[] }> }) {
+export default async function Home({ searchParams }: { searchParams: Promise<{ range?: string | string[]; weekOffset?: string | string[]; monthOffset?: string | string[] }> }) {
   const params = await searchParams;
   const range = parseRange(params.range);
   const weekOffset = range === "week" ? parseWeekOffset(params.weekOffset) : 0;
+  const monthOffset = range === "month" ? parseMonthOffset(params.monthOffset) : 0;
   // proxy.ts (the auth middleware) has already verified the session and set this header;
   // it's never trusted from an unauthenticated request since proxy.ts gates every route.
   const householdId = (await headers()).get(householdIdHeader);
   const household = householdId ? getHouseholdById(householdId) : null;
-  const summary = household ? await getSummary(range, household.id, household.deviceIds, weekOffset) : null;
+  const summary = household ? await getSummary(range, household.id, household.deviceIds, weekOffset, monthOffset) : null;
   const online = isOnline(summary?.lastSeenAt || null);
   const timeZone = summary?.timeZone || "UTC";
   const showDate = range !== "day";
-  const weeklyAverage = summary && range === "week"
+  const dailyAverage = summary && (range === "week" || range === "month")
     ? averagePerDay(summary.activeSeconds + summary.mediaSeconds, summary.daysInRange)
     : undefined;
 
@@ -63,7 +67,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
             {summary ? <TimelineLegend points={summary.timeline} /> : null}
           </div>
           {summary
-            ? <Timeline points={summary.timeline} label={range === "day" ? "Usage by hour" : "Usage by day"} averageSeconds={weeklyAverage} />
+            ? <Timeline points={summary.timeline} label={range === "day" ? "Usage by hour" : "Usage by day"} averageSeconds={dailyAverage} />
             : <p className="empty">No activity yet.</p>}
         </>
       ),
@@ -101,10 +105,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
       </header>
 
       <UsageModeProvider>
-      <RangeShell range={range} weekOffset={weekOffset}>
+      <RangeShell range={range} weekOffset={weekOffset} monthOffset={monthOffset}>
       <section className="hero">
         <div>
-          <p className="eyebrow">{eyebrowFor(range, weekOffset, summary?.rangeStartDay)} · {summary?.deviceId || "WAITING FOR DEVICE"}</p>
+          <p className="eyebrow">{eyebrowFor(range, range === "week" ? weekOffset : monthOffset, summary?.rangeStartDay)} · {summary?.deviceId || "WAITING FOR DEVICE"}</p>
           <UsageHero summary={summary} />
         </div>
         <div className="connection">
