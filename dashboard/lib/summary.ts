@@ -5,7 +5,7 @@ import { systemAppNames } from "@/lib/system-apps";
 import { cleanPageTitle } from "@/lib/page-title";
 import { buildPageSessions, totalsByPage } from "@/lib/pages";
 import { buildTimelinePoints, type TimelineRow } from "@/lib/timeline";
-import type { DashboardSummary } from "@/lib/types";
+import type { DashboardSummary, LifecycleEventKind } from "@/lib/types";
 
 // Caps how much detail the page renders for long ranges.
 const MAX_SESSIONS = 300;
@@ -28,6 +28,13 @@ type TotalsRow = {
 type MinuteRow = { epoch: number; app_name: string; seconds: number };
 
 type PageRow = MinuteRow & { page_title: string };
+
+type LifecycleRow = {
+  occurred_at: string;
+  kind: LifecycleEventKind;
+  agent_version: string;
+  detail: string | null;
+};
 
 // Neon returns untyped rows; this narrows a query's rows to the shape selected.
 async function rows<T>(query: PromiseLike<Array<Record<string, unknown>>>): Promise<T[]> {
@@ -95,7 +102,7 @@ export async function getSummary(range: RangeKey, householdId: string, deviceIds
   const deviceId = totals[0].device_id;
   const appParams = [deviceId, bounds.start_at, bounds.end_at, systemNamesParam(), householdId];
 
-  const [timelineRows, apps, foregroundRows, backgroundRows, hiddenApps, pageRows, idleRows] = await Promise.all([
+  const [timelineRows, apps, foregroundRows, backgroundRows, hiddenApps, pageRows, idleRows, lifecycleRows] = await Promise.all([
     rows<TimelineRow>(sql.query(
       `SELECT ${range === "day"
         ? "EXTRACT(HOUR FROM started_at AT TIME ZONE $1)::int::text"
@@ -145,6 +152,14 @@ export async function getSummary(range: RangeKey, householdId: string, deviceIds
       GROUP BY 1, 2`,
       appParams,
     )),
+    rows<LifecycleRow>(sql.query(
+      `SELECT occurred_at::text, kind, agent_version, detail
+      FROM agent_lifecycle_events
+      WHERE device_id = $1
+      ORDER BY occurred_at DESC
+      LIMIT 20`,
+      [deviceId],
+    )),
   ]);
 
   const used = Number(totals[0].active_seconds) + Number(totals[0].media_seconds);
@@ -175,6 +190,12 @@ export async function getSummary(range: RangeKey, householdId: string, deviceIds
     pages: pageVisits.slice(0, MAX_PAGE_VISITS),
     pageTotals: totalsByPage(pageVisits).slice(0, MAX_PAGE_TOTALS),
     overlaps: buildOverlaps(foreground, backgroundRows.map(toMinuteUsage)).slice(0, MAX_OVERLAPS),
+    agentEvents: lifecycleRows.map((event) => ({
+      occurredAt: event.occurred_at,
+      kind: event.kind,
+      agentVersion: event.agent_version,
+      detail: event.detail,
+    })),
   };
 }
 

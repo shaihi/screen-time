@@ -16,6 +16,24 @@ export type ActivitySample = {
   appName?: string | null;
 };
 
+export const lifecycleEventKinds = [
+  "started",
+  "user_exit",
+  "application_exit",
+  "sign_out",
+  "system_shutdown",
+  "updating",
+  "unexpected_stop",
+  "unexpected_system_restart",
+] as const;
+export type LifecycleEventKind = (typeof lifecycleEventKinds)[number];
+
+export type AgentLifecycleEvent = {
+  occurredAt: string;
+  kind: LifecycleEventKind;
+  agentVersion: string;
+  detail: string | null;
+};
 
 export type DashboardSummary = {
   range: RangeKey;
@@ -40,4 +58,5 @@ export type DashboardSummary = {
   overlaps: OverlapPeriod[];
   pages: PageVisit[];
   pageTotals: PageTotal[];
+  agentEvents: AgentLifecycleEvent[];
 };

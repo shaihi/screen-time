@@ -41,6 +41,20 @@ export async function ensureSchema() {
         ON activity_segments (device_id, started_at DESC)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_activity_segments_started
         ON activity_segments (started_at DESC)`;
+      await sql`CREATE TABLE IF NOT EXISTS agent_lifecycle_events (
+        event_id UUID PRIMARY KEY,
+        device_id TEXT NOT NULL,
+        occurred_at TIMESTAMPTZ NOT NULL,
+        kind TEXT NOT NULL CONSTRAINT agent_lifecycle_events_kind_check
+          CHECK (kind IN ('started', 'user_exit', 'application_exit', 'sign_out',
+            'system_shutdown', 'updating', 'unexpected_stop', 'unexpected_system_restart')),
+        run_id UUID NOT NULL,
+        agent_version TEXT NOT NULL,
+        detail TEXT,
+        received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_agent_lifecycle_events_device_occurred
+        ON agent_lifecycle_events (device_id, occurred_at DESC)`;
       // Browser page titles (agent 1.3+). Kept apart so they never add to activity totals.
       await sql`CREATE TABLE IF NOT EXISTS page_visits (
         device_id TEXT NOT NULL,

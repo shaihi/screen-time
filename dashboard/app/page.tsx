@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { AppsPanel } from "@/app/components/apps-panel";
+import { AgentStatusPanel } from "@/app/components/agent-status-panel";
 import { AutoRefresh } from "@/app/components/auto-refresh";
 import { DashboardBoard, type BoardPanel } from "@/app/components/dashboard-board";
 import { MetricsPanel } from "@/app/components/metrics-panel";
@@ -94,6 +95,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
       content: <OverlapsPanel overlaps={summary?.overlaps || []} timeZone={timeZone} showDate={showDate} />,
     },
     { id: "reminders", title: "Usage reminders", wide: false, content: <RemindersPanel householdId={household?.id ?? null} /> },
+    {
+      id: "agent-status",
+      title: "Agent status",
+      wide: false,
+      content: <AgentStatusPanel events={summary?.agentEvents || []} timeZone={timeZone} />,
+    },
   ];
 
   return (

@@ -12,6 +12,7 @@ internal sealed class MonitorContext : ApplicationContext
     private readonly WindowsActivity _activity = new();
     private readonly MinuteAggregator _aggregator = new();
     private readonly UploadQueue _uploads;
+    private readonly AgentLifecycleTracker _lifecycle;
     private readonly UpdateChecker _updates = new();
     private readonly UsageReminderStore _reminderStore;
     private readonly DailyUsageReminder _usageReminder;
@@ -26,6 +27,7 @@ internal sealed class MonitorContext : ApplicationContext
     private bool _sampling;
     private int _checkingForUpdates;
     private int _installingUpdate;
+    private int _stopEventRecorded;
     private bool _updateInstallPromptVisible;
     private volatile bool _stopping;
     private DateTimeOffset? _pausedUntil;
@@ -35,6 +37,9 @@ internal sealed class MonitorContext : ApplicationContext
     {
         _config = config;
         _uploads = new UploadQueue(config);
+        _lifecycle = new AgentLifecycleTracker();
+        var startedAt = DateTimeOffset.UtcNow;
+        _uploads.EnqueueEvents(_lifecycle.BeginRun(startedAt, GetBootedAt(startedAt), DisplayVersion));
         _reminderStore = new UsageReminderStore();
         _usageReminder = new DailyUsageReminder(_reminderStore.LoadPolicy() ?? UsageReminderPolicy.Disabled, _reminderStore.LoadState());
         _policyClient = new ReminderPolicyClient(config);
@@ -46,7 +51,11 @@ internal sealed class MonitorContext : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         var versionItem = menu.Items.Add($"Version {DisplayVersion}");
         versionItem.Enabled = false;
-        menu.Items.Add("Exit", null, (_, _) => ExitThread());
+        menu.Items.Add("Exit", null, (_, _) =>
+        {
+            RecordStop(LifecycleEventKinds.UserExit, "Exited from the notification tray.");
+            ExitThread();
+        });
 
         _tray = new NotifyIcon
         {
@@ -73,6 +82,7 @@ internal sealed class MonitorContext : ApplicationContext
         SystemEvents.SessionEnding += OnSessionEnding;
         Application.Idle += OnApplicationIdle;
         _ = SampleAsync();
+        _ = SendNowAsync();
         _ = RefreshReminderPolicyAsync();
     }
 
@@ -85,6 +95,7 @@ internal sealed class MonitorContext : ApplicationContext
     private async Task SampleAsync()
     {
         if (_sampling || _stopping) return;
+        _lifecycle.Heartbeat(DateTimeOffset.UtcNow);
         if (_pausedUntil is not null && _pausedUntil > DateTimeOffset.Now) return;
         if (_pausedUntil is not null) { _pausedUntil = null; UpdateTooltip("Monitoring"); }
         _sampling = true;
@@ -115,14 +126,35 @@ internal sealed class MonitorContext : ApplicationContext
             lock (_aggregatorLock) inProgress = _aggregator.Snapshot();
             if (inProgress.Count > 0) _uploads.Enqueue(inProgress);
             var sent = await _uploads.SendAllAsync();
-            UpdateTooltip(sent > 0 ? $"Sent {sent} minute records" : "Up to date");
+            UpdateTooltip(sent > 0 ? $"Sent {sent} records" : "Up to date");
         }
         catch { UpdateTooltip("Offline — data queued"); }
     }
 
     // Windows is signing out or shutting down: persist the unfinished minute and try one quick upload.
     // Sampling keeps going in case the shutdown is cancelled.
-    private void OnSessionEnding(object? sender, SessionEndingEventArgs e) => FlushAndUpload();
+    private void OnSessionEnding(object? sender, SessionEndingEventArgs e)
+    {
+        if (e.Reason == SessionEndReasons.Logoff)
+            RecordStop(LifecycleEventKinds.SignOut, "Windows user signed out.");
+        else
+            RecordStop(LifecycleEventKinds.SystemShutdown, "Windows shutdown or restart was requested.");
+        FlushAndUpload();
+    }
+
+    private void RecordStop(string kind, string? detail = null)
+    {
+        if (Interlocked.CompareExchange(ref _stopEventRecorded, 1, 0) != 0) return;
+        var lifecycleEvent = _lifecycle.EndRun(DateTimeOffset.UtcNow, kind, detail);
+        if (lifecycleEvent is not null) _uploads.EnqueueEvents([lifecycleEvent]);
+    }
+
+    private void ResumeAfterCancelledStop()
+    {
+        var resumedAt = DateTimeOffset.UtcNow;
+        _uploads.EnqueueEvents(_lifecycle.BeginRun(resumedAt, GetBootedAt(resumedAt), DisplayVersion));
+        Interlocked.Exchange(ref _stopEventRecorded, 0);
+    }
 
     private void FlushAndUpload()
     {
@@ -212,10 +244,12 @@ internal sealed class MonitorContext : ApplicationContext
         UpdateTooltip("Installing update");
         try
         {
+            RecordStop(LifecycleEventKinds.Updating, $"Installing version {_availableUpdate.Version}.");
             await _updates.StartInstallAsync(_availableUpdate, _config);
         }
         catch
         {
+            ResumeAfterCancelledStop();
             UpdateTooltip("Update failed");
             ShowBalloon(
                 "Screen Time update failed",
@@ -241,6 +275,9 @@ internal sealed class MonitorContext : ApplicationContext
         ? "unknown"
         : $"{version.Major}.{version.Minor}.{version.Build}";
 
+    private static DateTimeOffset GetBootedAt(DateTimeOffset now) =>
+        now - TimeSpan.FromMilliseconds(Environment.TickCount64);
+
     protected override void ExitThreadCore()
     {
         _sampleTimer.Stop();
@@ -252,6 +289,7 @@ internal sealed class MonitorContext : ApplicationContext
         _updates.UpdateAvailable -= OnUpdateAvailable;
         _tray.BalloonTipClicked -= OnBalloonTipClicked;
         _stopping = true;
+        RecordStop(LifecycleEventKinds.ApplicationExit, "Agent application exited cleanly.");
         _reminderStore.SaveState(_usageReminder.Snapshot());
         FlushAndUpload();
         _tray.Visible = false;
