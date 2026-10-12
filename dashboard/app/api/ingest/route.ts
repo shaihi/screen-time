@@ -2,7 +2,7 @@ import { z } from "zod";
 import { verifyIngestSignature } from "@/lib/auth";
 import { database, ensureSchema } from "@/lib/db";
 import { cleanPageTitle } from "@/lib/page-title";
-import { activityStates } from "@/lib/types";
+import { activityStates, lifecycleEventKinds } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -16,7 +16,17 @@ const payloadSchema = z.object({
     appName: z.string().trim().max(120).nullable().optional(),
     // Agent 1.3+: the browser page in front. Such samples are page detail, not extra activity.
     pageTitle: z.string().max(2000).transform(cleanPageTitle).nullable().optional(),
-  })).min(1).max(500),
+  })).max(500).default([]),
+  events: z.array(z.object({
+    eventId: z.string().uuid(),
+    occurredAt: z.string().datetime({ offset: true }),
+    kind: z.enum(lifecycleEventKinds),
+    runId: z.string().uuid(),
+    agentVersion: z.string().trim().min(1).max(32),
+    detail: z.string().trim().max(500).nullable().optional(),
+  })).max(100).default([]),
+}).refine((payload) => payload.samples.length + payload.events.length > 0, {
+  message: "At least one sample or lifecycle event is required",
 });
 
 export async function POST(request: Request) {
@@ -46,7 +56,7 @@ export async function POST(request: Request) {
   const sql = database();
   // Agents send running totals for the unfinished minute and again once it completes,
   // so keep the largest value per minute/state/app instead of adding them up.
-  const { batchId, deviceId } = parsed.data;
+  const { batchId, deviceId, events } = parsed.data;
   const samples = parsed.data.samples.filter((sample) => sample.pageTitle == null);
   const pages = parsed.data.samples.filter((sample) => sample.pageTitle && sample.appName);
   await sql.transaction([sql`
@@ -73,7 +83,25 @@ export async function POST(request: Request) {
     ON CONFLICT (device_id, started_at, app_name, page_title) DO UPDATE
       SET duration_seconds = GREATEST(page_visits.duration_seconds, EXCLUDED.duration_seconds),
         received_at = NOW()
+  `, sql`
+    INSERT INTO agent_lifecycle_events
+      (event_id, device_id, occurred_at, kind, run_id, agent_version, detail)
+    SELECT
+      x."eventId"::uuid,
+      ${deviceId},
+      x."occurredAt"::timestamptz,
+      x.kind,
+      x."runId"::uuid,
+      x."agentVersion",
+      NULLIF(x.detail, '')
+    FROM jsonb_to_recordset(${JSON.stringify(events)}::jsonb)
+      AS x("eventId" text, "occurredAt" text, kind text, "runId" text, "agentVersion" text, detail text)
+    ON CONFLICT (event_id) DO NOTHING
   `]);
 
-  return Response.json({ accepted: parsed.data.samples.length });
+  return Response.json({
+    accepted: parsed.data.samples.length + events.length,
+    samplesAccepted: parsed.data.samples.length,
+    eventsAccepted: events.length,
+  });
 }

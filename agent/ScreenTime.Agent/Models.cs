@@ -13,4 +13,15 @@ internal sealed record ActivitySample(
     string State,
     string? AppName,
     string? PageTitle = null);
-internal sealed record UploadBatch(Guid BatchId, string DeviceId, IReadOnlyList<ActivitySample> Samples);
+internal sealed record AgentLifecycleEvent(
+    Guid EventId,
+    DateTimeOffset OccurredAt,
+    string Kind,
+    Guid RunId,
+    string AgentVersion,
+    string? Detail = null);
+internal sealed record UploadBatch(
+    Guid BatchId,
+    string DeviceId,
+    IReadOnlyList<ActivitySample> Samples,
+    IReadOnlyList<AgentLifecycleEvent> Events);

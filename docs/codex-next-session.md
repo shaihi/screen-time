@@ -6,7 +6,7 @@ Read this file before changing or reinstalling Screen Time on this PC.
 
 - Repository: `https://github.com/shaihi/screen-time`
 - Production dashboard: `https://screen-time-iota.vercel.app`
-- The installed agent is version 1.5.0 from current `main`, with foreground browser page titles, a visible tray version, and click-to-confirm updates.
+- Agent 1.7.0 adds durable lifecycle reporting. It queues start events and clean stop reasons (tray exit, sign-out, Windows shutdown/restart, and update), and infers an unexpected stop or a restart/power interruption from an open run marker on the next launch. The dashboard shows the 20 most recent events in **Agent status**. Crashes versus forced termination, and restarts versus power loss, are intentionally grouped because Windows cannot distinguish them reliably after the fact.
 - It runs only in the notification tray, samples every 2 seconds, uploads every minute, and starts at user sign-in.
 - Installed files and preserved settings are under `%LOCALAPPDATA%\ScreenTimeAgent`.
 - `CollectPageTitles` is enabled. It collects only the foreground browser window title while active—never URLs, page content, or keystrokes.
