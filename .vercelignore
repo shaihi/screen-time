@@ -1,0 +1,9 @@
+/.git
+/.tools
+/.vercel
+/agent
+/docs
+/dashboard/.next
+/dashboard/node_modules
+/dashboard/.env.local
+*.log
