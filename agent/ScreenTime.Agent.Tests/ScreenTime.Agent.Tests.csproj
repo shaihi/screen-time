@@ -9,6 +9,7 @@
   <!-- Platform-neutral agent logic, compiled directly so the tests run on any OS. -->
   <ItemGroup>
     <Compile Include="..\ScreenTime.Agent\AppNames.cs" Link="Agent\AppNames.cs" />
+    <Compile Include="..\ScreenTime.Agent\ControlPipeClient.cs" Link="Agent\ControlPipeClient.cs" />
     <Compile Include="..\ScreenTime.Agent\AgentConfig.cs" Link="Agent\AgentConfig.cs" />
     <Compile Include="..\ScreenTime.Agent\AgentLifecycleTracker.cs" Link="Agent\AgentLifecycleTracker.cs" />
     <Compile Include="..\ScreenTime.Agent\MinuteAggregator.cs" Link="Agent\MinuteAggregator.cs" />

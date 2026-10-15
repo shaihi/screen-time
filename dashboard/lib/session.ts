@@ -38,7 +38,8 @@ function encodeHouseholdId(householdId: string) {
 
 export async function createSessionToken(householdId: string, secret: string) {
   const expiresAt = String(Math.floor(Date.now() / 1000) + sessionLifetimeSeconds);
-  const payload = `${encodeHouseholdId(householdId)}.${expiresAt}`;
+  const nonce = toHex(crypto.getRandomValues(new Uint8Array(16)));
+  const payload = `${encodeHouseholdId(householdId)}.${expiresAt}.${nonce}`;
   return `${payload}.${await signature(payload, secret)}`;
 }
 
@@ -47,17 +48,23 @@ export async function verifySessionToken(
   lookupSecret: (householdId: string) => string | null,
 ): Promise<string | null> {
   if (!token) return null;
-  const [encodedHouseholdId, expiresAt, suppliedSignature, ...extra] = token.split(".");
-  if (extra.length || !encodedHouseholdId || !expiresAt || !suppliedSignature || !/^\d+$/.test(expiresAt)) {
+  const parts = token.split(".");
+  if (parts.length !== 3 && parts.length !== 4) return null;
+  const [encodedHouseholdId, expiresAt] = parts;
+  const suppliedSignature = parts[parts.length - 1];
+  if (!encodedHouseholdId || !expiresAt || !suppliedSignature || !/^\d+$/.test(expiresAt)
+    || (parts.length === 4 && !/^[a-f0-9]{32}$/.test(parts[2]))) {
     return null;
   }
   if (Number(expiresAt) <= Math.floor(Date.now() / 1000)) return null;
 
-  const householdId = decodeURIComponent(encodedHouseholdId);
+  let householdId: string;
+  try { householdId = decodeURIComponent(encodedHouseholdId); }
+  catch { return null; }
   const secret = lookupSecret(householdId);
   if (!secret) return null;
 
-  const payload = `${encodedHouseholdId}.${expiresAt}`;
+  const payload = parts.slice(0, -1).join(".");
   const expectedSignature = await signature(payload, secret);
   return constantTimeEqual(suppliedSignature, expectedSignature) ? householdId : null;
 }

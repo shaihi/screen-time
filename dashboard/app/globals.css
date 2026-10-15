@@ -104,3 +104,42 @@ footer { text-align: center; color: #5b645e; font-size: 9px; letter-spacing: .05
 .metric.warn.counted { border-color: #fab21955; }.usage-bar .seg.unattended.counted { background: repeating-linear-gradient(135deg, var(--warn) 0 6px, #d99a12 6px 12px); }
 .usage-bar { display: flex; gap: 2px; height: 12px; border-radius: 7px; overflow: hidden; background: #171c19; }.usage-bar .seg { min-width: 0; border-radius: 4px; }.usage-bar .seg.real { background: var(--lime); }.usage-bar .seg.unattended { background: var(--warn); }.usage-bar .seg.idle { background: var(--slate); opacity: .55; }
 .metric.warn { color: var(--warn); }.metric small .swatch { margin-right: 6px; vertical-align: -1px; }
+
+.control-panel { scroll-margin-top: 24px; }
+.control-panel label { display: flex; flex-direction: column; gap: 7px; font-size: 12px; color: #c7cec8; }
+.control-panel input, .control-panel select { width: 100%; min-width: 0; padding: 11px 12px; border-radius: 9px; border: 1px solid var(--line); background: #0e130f; color: var(--ink); font: inherit; }
+.control-panel input:focus-visible, .control-panel select:focus-visible, .control-panel button:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
+.control-panel button { cursor: pointer; }
+.control-panel button:disabled, .control-panel fieldset:disabled { opacity: .5; cursor: default; }
+.control-panel .panel-note { line-height: 1.65; }
+.control-error, .control-message, .control-notice { padding: 12px 15px; border-radius: 10px; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.control-error { color: #ffb8aa; border: 1px solid #a64836; background: #3b1b17; }
+.control-message { color: var(--lime); border: 1px solid #61772f; background: #202b18; }
+.control-notice { color: #e3c17b; border: 1px solid #66522e; background: #292317; }
+.control-unlock { max-width: 580px; margin: 20px 0; display: grid; gap: 10px; }
+.control-inline { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
+.control-inline > input, .control-inline > label { flex: 1 1 130px; }
+.control-inline > button { flex: 0 0 auto; }
+.control-devices { display: grid; gap: 20px; margin-top: 20px; }
+.control-device { padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: #0d120e88; }
+.control-device-heading { display: flex; gap: 12px; justify-content: space-between; align-items: start; flex-wrap: wrap; }
+.control-device h3 { margin: 0 0 5px; font-size: 17px; overflow-wrap: anywhere; }
+.control-device small { color: var(--muted); font-size: 11px; }
+.control-state { color: var(--lime); font-size: 12px; }
+.control-stat-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 20px 0; }
+.control-stat-grid > div { display: flex; flex-direction: column; gap: 7px; }
+.control-stat-grid strong { font-size: 15px; }
+.control-fields { border: 0; padding: 0; margin: 20px 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.control-fields .control-check, .control-fields > button { grid-column: 1 / -1; }
+.control-panel .control-check { flex-direction: row; align-items: start; line-height: 1.6; margin: 8px 0; }
+.control-panel .control-check input { width: 17px; height: 17px; flex: 0 0 auto; margin-top: 2px; accent-color: var(--lime); }
+.control-grants { margin-top: 18px; }
+.control-enroll { padding-top: 15px; margin-top: 18px; border-top: 1px solid var(--line); }
+.control-enroll summary { cursor: pointer; color: #c7cec8; font-size: 12px; }
+.control-enroll > form { display: grid; gap: 12px; max-width: 600px; margin-top: 15px; }
+.control-enroll .control-notice p { font-size: 11px; }
+@media (max-width: 650px) {
+  .control-fields { grid-template-columns: 1fr; }
+  .control-stat-grid { grid-template-columns: 1fr; }
+  .control-device { padding: 15px; }
+}

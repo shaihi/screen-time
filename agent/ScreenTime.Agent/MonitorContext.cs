@@ -10,6 +10,8 @@ internal sealed class MonitorContext : ApplicationContext
     private const int DailyUpdateIntervalMilliseconds = 24 * 60 * 60 * 1000;
     private readonly AgentConfig _config;
     private readonly WindowsActivity _activity = new();
+    private readonly ControlPipeClient _control = new();
+    private string? _lastControlWarning;
     private readonly MinuteAggregator _aggregator = new();
     private readonly UploadQueue _uploads;
     private readonly AgentLifecycleTracker _lifecycle;
@@ -39,19 +41,25 @@ internal sealed class MonitorContext : ApplicationContext
         _uploads = new UploadQueue(config);
         _lifecycle = new AgentLifecycleTracker();
         var startedAt = DateTimeOffset.UtcNow;
-        _uploads.EnqueueEvents(_lifecycle.BeginRun(startedAt, GetBootedAt(startedAt), DisplayVersion));
+        if (config.TelemetryEnabled) _uploads.EnqueueEvents(_lifecycle.BeginRun(startedAt, GetBootedAt(startedAt), DisplayVersion));
         _reminderStore = new UsageReminderStore();
         _usageReminder = new DailyUsageReminder(_reminderStore.LoadPolicy() ?? UsageReminderPolicy.Disabled, _reminderStore.LoadState());
         _policyClient = new ReminderPolicyClient(config);
         var menu = new ContextMenuStrip();
         menu.Items.Add("Send now", null, async (_, _) => await SendNowAsync());
-        menu.Items.Add("Pause for 30 minutes", null, (_, _) => Pause(TimeSpan.FromMinutes(30)));
+        menu.Items.Add(config.ManagedInstallation ? "Pause reports for 30 minutes (rules stay on)" : "Pause for 30 minutes", null, (_, _) => Pause(TimeSpan.FromMinutes(30)));
         menu.Items.Add("Resume", null, (_, _) => { _pausedUntil = null; UpdateTooltip("Monitoring"); });
-        menu.Items.Add("Check for updates", null, async (_, _) => await CheckForUpdatesAsync(manual: true));
+        if (!config.ManagedInstallation)
+            menu.Items.Add("Check for updates", null, async (_, _) => await CheckForUpdatesAsync(manual: true));
+        if (config.ManagedInstallation)
+        {
+            var managed = menu.Items.Add("Screen-time rules stay on when this icon closes");
+            managed.Enabled = false;
+        }
         menu.Items.Add(new ToolStripSeparator());
         var versionItem = menu.Items.Add($"Version {DisplayVersion}");
         versionItem.Enabled = false;
-        menu.Items.Add("Exit", null, (_, _) =>
+        menu.Items.Add(config.ManagedInstallation ? "Close icon (rules stay on)" : "Exit", null, (_, _) =>
         {
             RecordStop(LifecycleEventKinds.UserExit, "Exited from the notification tray.");
             ExitThread();
@@ -96,8 +104,8 @@ internal sealed class MonitorContext : ApplicationContext
     {
         if (_sampling || _stopping) return;
         _lifecycle.Heartbeat(DateTimeOffset.UtcNow);
-        if (_pausedUntil is not null && _pausedUntil > DateTimeOffset.Now) return;
-        if (_pausedUntil is not null) { _pausedUntil = null; UpdateTooltip("Monitoring"); }
+        if (!_config.ManagedInstallation && _pausedUntil is not null && _pausedUntil > DateTimeOffset.Now) return;
+        if (_pausedUntil is not null && _pausedUntil <= DateTimeOffset.Now) { _pausedUntil = null; UpdateTooltip("Monitoring"); }
         _sampling = true;
         try
         {
@@ -105,6 +113,9 @@ internal sealed class MonitorContext : ApplicationContext
                 _config.IdleThresholdSeconds,
                 _config.CollectPageTitles);
             if (_stopping) return;
+            // Do not await IPC: stalled pipe traffic cannot block activity sampling.
+            _ = SendControlObservationAsync(classification.State);
+            if (!_config.TelemetryEnabled || _pausedUntil > DateTimeOffset.Now) return;
             var observedAt = DateTimeOffset.UtcNow;
             IReadOnlyList<ActivitySample> completed;
             lock (_aggregatorLock) completed = _aggregator.Observe(observedAt, classification, _config.SampleIntervalSeconds);
@@ -118,8 +129,26 @@ internal sealed class MonitorContext : ApplicationContext
         finally { _sampling = false; }
     }
 
+    private async Task SendControlObservationAsync(ActivityState state)
+    {
+        var status = await _control.ObserveAsync(state);
+        if (_stopping || !_config.ManagedInstallation) return;
+        if (status is null) { UpdateTooltip("Rules service unavailable"); return; }
+        var label = status.RemainingSeconds is int seconds ? $"{Math.Ceiling(seconds / 60d)} min left" : status.State;
+        UpdateTooltip(label);
+        if (status.WarningSeconds is int warning)
+        {
+            var key = $"{DateTime.Today:yyyy-MM-dd}:{warning}";
+            if (_lastControlWarning == key) return;
+            _lastControlWarning = key;
+            ShowBalloon("Save your work", $"Screen time ends in {warning / 60} minute(s). Save your work now; apps will close at the limit.", ToolTipIcon.Warning);
+        }
+        else if (status.State == "allowed" && status.RemainingSeconds > 300) _lastControlWarning = null;
+    }
+
     private async Task SendNowAsync()
     {
+        if (!_config.TelemetryEnabled) return;
         try
         {
             IReadOnlyList<ActivitySample> inProgress;
@@ -146,18 +175,19 @@ internal sealed class MonitorContext : ApplicationContext
     {
         if (Interlocked.CompareExchange(ref _stopEventRecorded, 1, 0) != 0) return;
         var lifecycleEvent = _lifecycle.EndRun(DateTimeOffset.UtcNow, kind, detail);
-        if (lifecycleEvent is not null) _uploads.EnqueueEvents([lifecycleEvent]);
+        if (_config.TelemetryEnabled && lifecycleEvent is not null) _uploads.EnqueueEvents([lifecycleEvent]);
     }
 
     private void ResumeAfterCancelledStop()
     {
         var resumedAt = DateTimeOffset.UtcNow;
-        _uploads.EnqueueEvents(_lifecycle.BeginRun(resumedAt, GetBootedAt(resumedAt), DisplayVersion));
+        if (_config.TelemetryEnabled) _uploads.EnqueueEvents(_lifecycle.BeginRun(resumedAt, GetBootedAt(resumedAt), DisplayVersion));
         Interlocked.Exchange(ref _stopEventRecorded, 0);
     }
 
     private void FlushAndUpload()
     {
+        if (!_config.TelemetryEnabled) return;
         try
         {
             IReadOnlyList<ActivitySample> remaining;
@@ -172,11 +202,12 @@ internal sealed class MonitorContext : ApplicationContext
     private void Pause(TimeSpan duration)
     {
         _pausedUntil = DateTimeOffset.Now.Add(duration);
-        UpdateTooltip("Paused for 30 minutes");
+        UpdateTooltip(_config.ManagedInstallation ? "Reports paused; rules stay on" : "Paused for 30 minutes");
     }
 
     private async Task RefreshReminderPolicyAsync()
     {
+        if (!_config.TelemetryEnabled) return;
         try
         {
             var policy = await _policyClient.FetchAsync();
@@ -208,7 +239,7 @@ internal sealed class MonitorContext : ApplicationContext
 
     private async Task CheckForUpdatesAsync(bool manual)
     {
-        if (_stopping || Interlocked.CompareExchange(ref _checkingForUpdates, 1, 0) != 0) return;
+        if (_config.ManagedInstallation || _stopping || Interlocked.CompareExchange(ref _checkingForUpdates, 1, 0) != 0) return;
         try
         {
             if (manual) UpdateTooltip("Checking for updates");
