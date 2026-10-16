@@ -2,7 +2,8 @@ param(
     [string]$ApiUrl,
     [string]$IngestSecret,
     [string]$DeviceId,
-    [string]$CleanupRoot = ""
+    [string]$CleanupRoot = "",
+    [switch]$AllowDowngrade
 )
 
 # Runs from an extracted release zip next to ScreenTime.Agent.exe.
@@ -55,6 +56,11 @@ function Install-VerifiedFile([string]$Source, [string]$Destination) {
     if ((Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash -ne $expectedHash) {
         throw "The installed agent executable failed SHA-256 verification."
     }
+}
+
+function Get-AgentVersion([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { return $null }
+    return (Get-Item -LiteralPath $Path).VersionInfo.FileVersionRaw
 }
 
 function Get-ValidatedCleanupRoot([string]$CandidatePath) {
@@ -110,6 +116,12 @@ if (-not $ApiUrl -or -not $IngestSecret) {
     throw "ApiUrl and IngestSecret are required for a first install. Example:`n  .\install-release.ps1 -ApiUrl https://YOUR-PROJECT.vercel.app/api/ingest -IngestSecret YOUR-SECRET -DeviceId family-pc"
 }
 
+$sourceVersion = Get-AgentVersion $sourceExe
+$existingVersion = Get-AgentVersion $installedExe
+if (-not $AllowDowngrade -and $existingVersion -and $sourceVersion -lt $existingVersion) {
+    throw "Refusing to replace Screen Time Agent $existingVersion with older version $sourceVersion. Pass -AllowDowngrade to roll back intentionally."
+}
+
 Stop-AgentProcess
 Wait-FileUnlocked $installedExe
 Install-VerifiedFile $sourceExe $installedExe
@@ -142,7 +154,8 @@ $installedProcesses = @(Get-Process -Name "ScreenTime.Agent" -ErrorAction Silent
 if ($installedProcesses.Count -ne 1) {
     throw "Expected exactly one installed ScreenTime.Agent process; found $($installedProcesses.Count)."
 }
-Write-Host "Installed. The agent is running in the notification tray and will start at sign-in."
+$installedVersion = (Get-Item -LiteralPath $installedExe).VersionInfo.ProductVersion
+Write-Host "Installed Screen Time Agent $installedVersion. The agent is running in the notification tray and will start at sign-in."
 Write-Host "Windows may show an 'unrecognized publisher' warning the first time -- click 'More info' then 'Run anyway'. This is expected for an unsigned, self-published tool."
 } finally {
     if ($transcriptStarted) {

@@ -25,12 +25,12 @@ Use this only on a computer you own or administer, with the knowledge of the per
 
 ## Repository layout
 
-- `agent/ScreenTime.Agent` — .NET 8 Windows tray agent
+- `agent/ScreenTime.Agent` — .NET 10 Windows tray agent
 - `agent/install.ps1` — publishes and installs the agent for the current user
 - `dashboard` — Next.js dashboard and authenticated ingest API
 - `.env.example` — Vercel/database configuration template
 
-The optional Windows 11 Pro control service is implemented on `feat/windows-screen-time-enforcement`. Follow [Start here: simple setup and rescue](docs/START-HERE.md) to prepare its dashboard, package, and parent-installed Windows service. Installation starts with blocking off. Managed mode requires a standard child account and signs the child out when the rules run out; it closes running apps. The service has independent offline recovery and keeps saved rules when the network is unavailable. See the [architecture](docs/CONTROL-ARCHITECTURE.md) and [wire protocol](docs/CONTROL-PROTOCOL.md) for technical details. Windows sign-in enforcement still requires the real-PC acceptance tests in the setup guide.
+The optional Windows 11 Pro control service is included on `main`. Follow [Start here: simple setup and rescue](docs/START-HERE.md) to prepare its dashboard, package, and parent-installed Windows service. Installation starts with blocking off. Managed mode requires a standard child account and signs the child out when the rules run out; it closes running apps. The service has independent offline recovery and keeps saved rules when the network is unavailable. See the [architecture](docs/CONTROL-ARCHITECTURE.md) and [wire protocol](docs/CONTROL-PROTOCOL.md) for technical details. Windows sign-in enforcement still requires the real-PC acceptance tests in the setup guide.
 
 ## Deploy the dashboard
 
@@ -47,9 +47,9 @@ The dashboard uses a password-only sign-in form over HTTPS and stores only an HM
 
 ## Install the Windows agent
 
-Requirements for building: Windows 10/11 and the .NET 8 SDK. The published executable is self-contained, so the monitored account does not need .NET after installation.
+Requirements for building: Windows 10/11 and the .NET 10 SDK. The published executable is self-contained, so the monitored account does not need .NET after installation.
 
-For subsequent updates, run `Set-ExecutionPolicy -Scope Process Bypass -Force` followed by `.\agent\update.ps1`. The updater requires a clean worktree, fast-forwards `main`, runs the agent tests and release build, installs with executable-lock and hash verification, then confirms exactly one agent process is running.
+For subsequent updates, run `Set-ExecutionPolicy -Scope Process Bypass -Force` followed by `.\agent\update.ps1`. The updater requires a clean worktree, fast-forwards `main`, runs the agent tests and release build, installs with executable-lock and hash verification, then confirms exactly one agent process is running. Installers print the version they installed and refuse to replace a newer agent with an older one unless an intentional rollback passes `-AllowDowngrade`.
 
 From PowerShell in this repository:
 
@@ -62,7 +62,7 @@ From PowerShell in this repository:
 
 This publishes the agent, copies it to `%LOCALAPPDATA%\ScreenTimeAgent`, creates a current-user Startup shortcut, and launches the notification-tray icon. It does not request administrator elevation.
 
-Right-click the tray icon to upload immediately, pause for 30 minutes, resume, check for updates, or exit. Starting with agent 1.4, its version is visible in the tray tooltip and menu. Agent 1.5 checks the public GitHub release manifest at startup and once per day; when a newer signed-hash package is available, it asks the user to click a tray notification before installing. Updates are never installed silently. Agent 1.7 reports starts and clean stop reasons (tray exit, sign-out, Windows shutdown/restart, or update). If a run marker is still open on the next launch, it reports either an unexpected stop (crash or forced termination) or an unexpected restart/power interruption. When offline, minute records and lifecycle events remain queued locally and are retried later.
+Right-click the tray icon to upload immediately, pause for 30 minutes, resume, check for updates, or exit. Starting with agent 1.4, its version is visible in the tray tooltip and menu. Agent 1.5 checks the public GitHub release manifest at startup and once per day; when a newer signed-hash package is available, it asks the user to click a tray notification before installing. Updates are never installed silently. Agent 1.7 reports starts and clean stop reasons (tray exit, sign-out, Windows shutdown/restart, or update). Agent 1.8 keeps the lifecycle heartbeat alive and retries if the Windows media-session API stalls. If a run marker is still open on the next launch, it reports either an unexpected stop (crash or forced termination) or an unexpected restart/power interruption. When offline, minute records and lifecycle events remain queued locally and are retried later.
 
 The headline number is **real use** (hands-on plus watching). A switch above the cards, **Count unattended as usage**, adds time the screen was on with an app left running but no input; the choice is saved in the browser. The three cards and the bar split screen-on time into real use, unattended and idle.
 

@@ -102,8 +102,9 @@ internal sealed class MonitorContext : ApplicationContext
 
     private async Task SampleAsync()
     {
-        if (_sampling || _stopping) return;
+        if (_stopping) return;
         _lifecycle.Heartbeat(DateTimeOffset.UtcNow);
+        if (_sampling) return;
         if (!_config.ManagedInstallation && _pausedUntil is not null && _pausedUntil > DateTimeOffset.Now) return;
         if (_pausedUntil is not null && _pausedUntil <= DateTimeOffset.Now) { _pausedUntil = null; UpdateTooltip("Monitoring"); }
         _sampling = true;

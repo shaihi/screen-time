@@ -19,18 +19,18 @@ git checkout main
 git pull
 ```
 
-## 2. Check the .NET 8 SDK
+## 2. Check the .NET 10 SDK
 
 ```powershell
 dotnet --list-sdks
 ```
 
-- If an `8.0.x` SDK is listed, continue.
+- If a `10.0.x` SDK is listed, continue.
 - If `dotnet` is missing, but `.tools\dotnet\dotnet.exe` exists in the repo, use that path in place of `dotnet` below. `install.ps1` finds it on its own.
-- Otherwise install the .NET 8 SDK for the current user:
+- Otherwise install the .NET 10 SDK for the current user:
 
 ```powershell
-winget install --id Microsoft.DotNet.SDK.8 --silent --accept-source-agreements --accept-package-agreements
+winget install --id Microsoft.DotNet.SDK.10 --silent --accept-source-agreements --accept-package-agreements
 ```
 
 Open a new PowerShell window afterwards so `dotnet` is on PATH.
