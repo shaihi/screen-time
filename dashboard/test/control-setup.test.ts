@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createPrivateKey } from "node:crypto";
+import { fileURLToPath } from "node:url";
 // The deployment helper is deliberately plain Node.js, without a TS runtime dependency.
 // @ts-expect-error The .mjs CLI has no declaration file.
 import { splitMigrationStatements } from "../../scripts/control-setup.mjs";
@@ -40,7 +41,7 @@ test("secret generation creates a private new file, prints no secrets, refuses o
       script = new URL("../../scripts/control-setup.mjs", import.meta.url);
     const run = spawnSync(
       process.execPath,
-      [script.pathname, "generate", "--output", path],
+      [fileURLToPath(script), "generate", "--output", path],
       { encoding: "utf8" },
     );
     assert.equal(run.status, 0, run.stderr);
@@ -65,7 +66,7 @@ test("secret generation creates a private new file, prints no secrets, refuses o
       assert.equal((await stat(path)).mode & 0o777, 0o600);
     const second = spawnSync(
       process.execPath,
-      [script.pathname, "generate", "--output", path],
+      [fileURLToPath(script), "generate", "--output", path],
       { encoding: "utf8" },
     );
     assert.notEqual(second.status, 0);
