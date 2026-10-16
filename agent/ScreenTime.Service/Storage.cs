@@ -50,6 +50,10 @@ internal sealed class DurableState
     {
         get; set;
     }
+    public DateTimeOffset? RestrictionCountdownUntilUtc
+    {
+        get; set;
+    }
     public long AppliedRevision
     {
         get; set;

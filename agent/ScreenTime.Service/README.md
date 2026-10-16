@@ -6,7 +6,9 @@ The wire contract is [CONTROL-PROTOCOL.md](../../docs/CONTROL-PROTOCOL.md).
 This is a Windows 11 Pro LocalSystem service, named `ScreenTime.Control`. The
 service implements whole-account cutoff: its owned deny-logon group prevents a
 new child sign-in, and every existing child console/RDP session is signed out.
-Signing out closes apps and can lose unsaved work. It does not preserve an open
+Each new cutoff starts a durable 30-second save countdown. At zero the service
+requests a graceful close, force-kills remaining child-owned processes (including
+apps waiting on save dialogs), then signs out. It does not preserve an open
 desktop behind a normal lock screen.
 
 ## Protected files
@@ -21,7 +23,8 @@ helper. The service refuses writable state paths and reparse points.
 - `restriction-group.json`: exact SID ownership receipt for `ScreenTimeRestricted`.
 - `state.json`: atomic write-through usage ledger, current/pending signed policy
   envelopes, trusted time anchors, desired restriction journal, last verified
-  applied revision. The ledger remains across policy edits and restarts.
+  applied revision, and an active cutoff deadline. The ledger and countdown remain
+  across policy edits and service restarts.
 - `service.log` and `.old`: bounded local diagnostic logs; no credentials or
   downloaded policy bodies are logged.
 
@@ -94,12 +97,14 @@ schedule/day recovery after a long shutdown; it does not promise protection
 against a machine administrator.
 
 Warnings are returned at five minutes and one minute before the current budget
-or allowed-hours boundary. There is no extra grace after a known cutoff. OS
-membership and rights are verified, sign-out is asynchronous, and `blocked` is
-acknowledged only after no child session remains. Failures produce error status
-and retain the prior verified applied revision. Parent sync continues while the
-child is signed out. No automatic privileged updater or remote command runner is
-included.
+or allowed-hours boundary. At the boundary, or after a parent presses Shutdown,
+the tray shows a non-dismissible 30-second countdown owned by the service's
+durable state. Killing the tray does not stop the deadline. OS membership and
+rights are verified, remaining child-owned apps are force-closed, and `blocked`
+is acknowledged only after no child session remains. Failures produce error
+status and retain the prior verified applied revision. Parent sync continues
+while the child is signed out. No automatic privileged updater or remote command
+runner is included.
 
 ## Validation
 

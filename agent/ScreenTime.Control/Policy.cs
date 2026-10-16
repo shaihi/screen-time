@@ -41,6 +41,8 @@ public sealed record ControlPolicy
     }
     [JsonRequired]
     public string Mode { get; init; } = "monitor";
+    // Optional for backward compatibility with policies issued before the shutdown control existed.
+    public bool Shutdown { get; init; }
     [JsonRequired]
     public string TimeZone { get; init; } = "Asia/Jerusalem";
     [JsonRequired]
@@ -112,6 +114,8 @@ public static class PolicyEvaluator
     public static string Day(ControlPolicy p, DateTimeOffset now) => TimeZoneInfo.ConvertTime(now, TimeZoneInfo.FindSystemTimeZoneById(p.TimeZone)).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     public static Decision Evaluate(ControlPolicy p, DateTimeOffset now, double usedSeconds)
     {
+        if (p.Shutdown)
+            return new("blocked", "Parent requested shutdown", 0, null, true);
         if (p.Mode == "monitor")
             return new("monitoring", "Monitoring only", null, null, false);
         var local = TimeZoneInfo.ConvertTime(now, TimeZoneInfo.FindSystemTimeZoneById(p.TimeZone));
@@ -142,6 +146,30 @@ public static class PolicyEvaluator
         var deadline = Math.Min(remaining ?? double.PositiveInfinity, scheduleRemaining ?? double.PositiveInfinity);
         int? warning = deadline <= 60 ? 60 : deadline <= 300 ? 300 : null;
         return new(warning.HasValue ? "warning" : "allowed", warning.HasValue ? "Save your work before screen time ends" : "Within screen-time rules", remaining, warning, false);
+    }
+}
+public sealed record RestrictionTransition(Decision Decision, DateTimeOffset? CountdownUntilUtc, bool EnforceBlocked);
+public static class RestrictionCountdown
+{
+    public static readonly TimeSpan Duration = TimeSpan.FromSeconds(30);
+
+    public static RestrictionTransition Evaluate(Decision desired, bool wasDesiredBlocked, DateTimeOffset? countdownUntilUtc, DateTimeOffset now)
+    {
+        if (!desired.Blocked)
+            return new(desired, null, false);
+        if (!wasDesiredBlocked && countdownUntilUtc is null)
+            countdownUntilUtc = now.Add(Duration);
+        if (countdownUntilUtc is { } deadline && deadline > now)
+        {
+            var seconds = Math.Clamp((int)Math.Ceiling((deadline - now).TotalSeconds), 1, (int)Duration.TotalSeconds);
+            return new(new Decision(
+                "countdown",
+                $"{desired.Reason}. Save now; all apps close in {seconds} seconds.",
+                desired.RemainingSeconds,
+                seconds,
+                false), deadline, false);
+        }
+        return new(desired, null, true);
     }
 }
 public static class PolicyVerifier

@@ -143,9 +143,20 @@ function DeviceEditor({ device, observedAt, disabled, onAction, onIdempotent, on
       </fieldset>
     </form>
     {futureChange && <p className="control-notice">A rule change is scheduled for {new Date(policy.effectiveAtUtc).toLocaleTimeString()}. Existing rules continue until then. To grant access immediately, first save the rules with “As soon as the computer receives them.”</p>}
-    <div className="control-inline control-grants">{[15, 30, 60].map((minutes) => <button key={minutes} type="button" className="text-button" disabled={disabled || device.revoked || futureChange} onClick={() => {
+    <div className="control-inline control-grants">{[15, 30, 60].map((minutes) => <button key={minutes} type="button" className="text-button" disabled={disabled || device.revoked || futureChange || policy.shutdown} onClick={() => {
       void onAction(async () => { await onIdempotent(`${basePath}/grant`, String(minutes), { expectedRevision: policy.revision, minutes }); onMessage(`Added ${minutes} minutes for today. Bedtime still applies. Waiting for the computer to confirm.`); });
     }}>+{minutes} min today</button>)}</div>
+    <div className={`control-shutdown${policy.shutdown ? " active" : ""}`}>
+      <div><strong>{policy.shutdown ? "Shutdown is active" : "Shut down child access now"}</strong><p>{policy.shutdown ? "The computer will remain blocked until you restore access." : "Shows a 30-second save warning, closes every child-owned app, and prevents the child from signing in again."}</p></div>
+      <button type="button" className={policy.shutdown ? "primary-button" : "danger-button"} disabled={disabled || device.revoked || futureChange} onClick={() => {
+        const next = !policy.shutdown;
+        if (!window.confirm(next ? "Start the 30-second shutdown countdown? All apps will be closed, including apps showing a save dialog." : "Restore access to this computer?")) return;
+        void onAction(async () => {
+          await request(`${basePath}/shutdown`, "POST", { expectedRevision: policy.revision, shutdown: next });
+          onMessage(next ? "Shutdown sent. The computer will show a 30-second countdown, close all apps, and block access." : "Access restoration sent. Waiting for the computer to confirm.");
+        });
+      }}>{policy.shutdown ? "Restore access" : "Shutdown"}</button>
+    </div>
     <details className="control-enroll"><summary>Temporary access or remove connection</summary>
       <form onSubmit={(event) => {
         event.preventDefault(); const form = new FormData(event.currentTarget);
@@ -155,7 +166,7 @@ function DeviceEditor({ device, observedAt, disabled, onAction, onIdempotent, on
           await onIdempotent(`${basePath}/override`, `${minutes}:${ignoreSchedule}`, { expectedRevision: policy.revision, untilUtc: new Date(Date.now() + minutes * 60_000).toISOString(), ignoreBudget: true, ignoreSchedule });
           onMessage("Temporary access saved. Waiting for the computer to confirm.");
         });
-      }}><fieldset disabled={disabled || device.revoked || futureChange} className="control-fields"><label>Allow access for minutes<input name="minutes" type="number" min={1} max={1440} defaultValue={30} required /></label><label className="control-check"><input name="ignoreSchedule" type="checkbox" />Also allow outside bedtime / allowed hours</label><button className="text-button">Allow temporarily</button></fieldset></form>
+      }}><fieldset disabled={disabled || device.revoked || futureChange || policy.shutdown} className="control-fields"><label>Allow access for minutes<input name="minutes" type="number" min={1} max={1440} defaultValue={30} required /></label><label className="control-check"><input name="ignoreSchedule" type="checkbox" />Also allow outside bedtime / allowed hours</label><button className="text-button">Allow temporarily</button></fieldset></form>
       <p className="panel-note">Removing the connection stops remote updates. It does not remove saved rules. Run the local recovery tool first.</p>
       <label className="control-check"><input type="checkbox" checked={revokeConfirmed} onChange={(event) => setRevokeConfirmed(event.target.checked)} />I have restored access using the local recovery tool.</label>
       <button type="button" className="text-button" disabled={disabled || device.revoked || !revokeConfirmed} onClick={() => { void onAction(async () => { await request(`${basePath}/revoke`, "POST", {}); onMessage("Remote connection removed. Use the local recovery tool to clear local rules if needed."); }); }}>Remove remote connection</button>

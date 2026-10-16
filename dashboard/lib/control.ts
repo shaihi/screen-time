@@ -25,6 +25,7 @@ export type ControlPolicy = {
   issuedAtUtc: string;
   effectiveAtUtc: string;
   mode: "monitor" | "managed";
+  shutdown?: boolean;
   timeZone: string;
   dailyLimitSeconds: number | null;
   budgetBasis: "actual_use" | "unlocked_session";
@@ -40,7 +41,7 @@ export type ControlPolicy = {
 export type ControlStatus = {
   protocolVersion: 1;
   appliedRevision: number;
-  state: "monitoring" | "allowed" | "warning" | "blocked" | "error";
+  state: "monitoring" | "allowed" | "warning" | "countdown" | "blocked" | "error";
   reason: string;
   usedSeconds: number;
   remainingSeconds: number | null;
@@ -119,11 +120,17 @@ const overrideSchema = z
     idempotencyKey: idempotencySchema,
   })
   .strict();
+const shutdownSchema = z
+  .object({
+    expectedRevision: revisionSchema,
+    shutdown: z.boolean(),
+  })
+  .strict();
 const syncSchema = z
   .object({
     protocolVersion: z.literal(1),
     appliedRevision: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
-    state: z.enum(["monitoring", "allowed", "warning", "blocked", "error"]),
+    state: z.enum(["monitoring", "allowed", "warning", "countdown", "blocked", "error"]),
     reason: z.string().max(500),
     usedSeconds: z
       .number()
@@ -179,6 +186,9 @@ export function validateOverride(input: unknown, now = new Date()) {
   )
     throw new Error("Choose at least one rule and an expiry within 24 hours");
   return value;
+}
+export function validateShutdown(input: unknown) {
+  return shutdownSchema.parse(input);
 }
 export function validateSync(input: unknown): ControlStatus {
   return syncSchema.parse(input);

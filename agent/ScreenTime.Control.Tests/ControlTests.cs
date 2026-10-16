@@ -68,6 +68,43 @@ public sealed class ControlTests
         Assert.Equal("monitoring", PolicyEvaluator.Evaluate(p, Noon, 9999).State);
     }
     [Fact]
+    public void ParentShutdownOverridesMonitoringAndTemporaryAccess()
+    {
+        var p = Policy() with
+        {
+            Mode = "monitor",
+            Shutdown = true,
+            Override = new(Guid.NewGuid(), Noon.AddHours(1), true, true)
+        };
+        var decision = PolicyEvaluator.Evaluate(p, Noon, 0);
+        Assert.True(decision.Blocked);
+        Assert.Equal("Parent requested shutdown", decision.Reason);
+    }
+    [Fact]
+    public void NewBlockCountsDownThenEnforcesAndCancellationClearsIt()
+    {
+        var blocked = new Decision("blocked", "Parent requested shutdown", 0, null, true);
+        var started = RestrictionCountdown.Evaluate(blocked, false, null, Noon);
+        Assert.Equal("countdown", started.Decision.State);
+        Assert.Equal(30, started.Decision.WarningSeconds);
+        Assert.False(started.EnforceBlocked);
+        Assert.Equal(Noon.AddSeconds(30), started.CountdownUntilUtc);
+
+        var ticking = RestrictionCountdown.Evaluate(blocked, true, started.CountdownUntilUtc, Noon.AddSeconds(20));
+        Assert.Equal(10, ticking.Decision.WarningSeconds);
+        Assert.False(ticking.EnforceBlocked);
+
+        var enforced = RestrictionCountdown.Evaluate(blocked, true, started.CountdownUntilUtc, Noon.AddSeconds(30));
+        Assert.True(enforced.EnforceBlocked);
+        Assert.Null(enforced.CountdownUntilUtc);
+
+        var allowed = new Decision("allowed", "Parent restored access", null, null, false);
+        var cancelled = RestrictionCountdown.Evaluate(allowed, true, started.CountdownUntilUtc, Noon.AddSeconds(10));
+        Assert.False(cancelled.EnforceBlocked);
+        Assert.Null(cancelled.CountdownUntilUtc);
+        Assert.Equal("allowed", cancelled.Decision.State);
+    }
+    [Fact]
     public void GrantsDoNotBypassBedtime()
     {
         var p = Policy() with

@@ -25,6 +25,7 @@ test("stale or unacknowledged state never appears as confirmed restriction", () 
   assert.equal(displayControlState({ ...status, lastSeenAt: "2026-10-15T11:50:00Z" }, 3, now), "Offline · last reported blocked");
   assert.equal(displayControlState(null, 3, now), "Waiting for first contact");
   assert.equal(displayControlState({ ...status, state: "error" }, 3, now), "Needs attention");
+  assert.equal(displayControlState({ ...status, state: "countdown", appliedRevision: 2 }, 3, now), "Closing apps in 30 seconds");
 });
 
 test("remaining time handles unlimited, zero, and partial minutes", () => {

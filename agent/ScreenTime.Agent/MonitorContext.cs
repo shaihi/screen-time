@@ -11,6 +11,7 @@ internal sealed class MonitorContext : ApplicationContext
     private readonly AgentConfig _config;
     private readonly WindowsActivity _activity = new();
     private readonly ControlPipeClient _control = new();
+    private EnforcementCountdownForm? _countdown;
     private string? _lastControlWarning;
     private readonly MinuteAggregator _aggregator = new();
     private readonly UploadQueue _uploads;
@@ -135,6 +136,18 @@ internal sealed class MonitorContext : ApplicationContext
         var status = await _control.ObserveAsync(state);
         if (_stopping || !_config.ManagedInstallation) return;
         if (status is null) { UpdateTooltip("Rules service unavailable"); return; }
+        if (status.State == "countdown" && status.WarningSeconds is int countdownSeconds)
+        {
+            _countdown ??= new EnforcementCountdownForm();
+            _countdown.UpdateCountdown(countdownSeconds, status.Reason);
+            UpdateTooltip($"Apps close in {countdownSeconds}s");
+            return;
+        }
+        if (_countdown is not null)
+        {
+            _countdown.Dismiss();
+            _countdown = null;
+        }
         var label = status.RemainingSeconds is int seconds ? $"{Math.Ceiling(seconds / 60d)} min left" : status.State;
         UpdateTooltip(label);
         if (status.WarningSeconds is int warning)
@@ -325,6 +338,8 @@ internal sealed class MonitorContext : ApplicationContext
         _reminderStore.SaveState(_usageReminder.Snapshot());
         FlushAndUpload();
         _tray.Visible = false;
+        _countdown?.Dismiss();
+        _countdown = null;
         _tray.Dispose();
         _updates.Dispose();
         base.ExitThreadCore();
