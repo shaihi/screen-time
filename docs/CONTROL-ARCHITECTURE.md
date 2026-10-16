@@ -1,6 +1,6 @@
 # Whole-PC screen-time enforcement on Windows 11 Pro
 
-Design and implementation record, 15 October 2026, updated after the parent's clarification. The optional control service, secure API, and dashboard are implemented on `feat/windows-screen-time-enforcement`. Follow [the simple setup guide](START-HERE.md) to install and verify them. Installation defaults to monitoring; no accounts or deployed systems were changed during development. Native Windows sign-in enforcement remains subject to real-PC acceptance testing. The repository review below records the pre-implementation baseline; the implementation details are in [CONTROL-PROTOCOL.md](CONTROL-PROTOCOL.md) and the service README.
+Design and implementation record, 15 October 2026, updated after the parent's clarification. The optional control service, secure API, and dashboard are implemented on `main`. Follow [the simple setup guide](START-HERE.md) to install and verify them. Installation defaults to monitoring; no accounts or deployed systems were changed during development. Native Windows sign-in enforcement remains subject to real-PC acceptance testing. The repository review below records the pre-implementation baseline; the implementation details are in [CONTROL-PROTOCOL.md](CONTROL-PROTOCOL.md) and the service README.
 
 ## Confirmed scope
 

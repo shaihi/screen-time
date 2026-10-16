@@ -10,19 +10,20 @@
     "test": "node --test --no-warnings test/*.test.ts"
   },
   "dependencies": {
-    "@neondatabase/serverless": "1.1.0",
-    "next": "16.3.5",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "zod": "4.6.5"
+    "@neondatabase/serverless": "1.2.0",
+    "next": "16.4.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.9",
-    "@types/node": "22.20.3",
+    "@typescript/native": "npm:typescript@7.0.2",
+    "@types/node": "24.19.2",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "eslint": "9.39.1",
-    "eslint-config-next": "16.3.5",
-    "typescript": "6.0.2"
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.4.2",
+    "typescript": "npm:@typescript/typescript6@6.0.2"
   }
 }

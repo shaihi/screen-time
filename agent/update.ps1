@@ -29,7 +29,7 @@ try {
     } else {
         $portableDotnet = Join-Path $repoRoot ".tools\dotnet\dotnet.exe"
         if (-not (Test-Path -LiteralPath $portableDotnet)) {
-            throw "The .NET 8 SDK is required."
+            throw "The .NET 10 SDK is required."
         }
         $dotnetPath = (Resolve-Path -LiteralPath $portableDotnet).Path
     }
@@ -43,6 +43,7 @@ try {
     if ($processes.Count -ne 1) { throw "Post-install verification found $($processes.Count) installed agent processes." }
     $settingsPath = Join-Path $env:LOCALAPPDATA "ScreenTimeAgent\appsettings.json"
     $settings = Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json
+    $installedVersion = (Get-Item -LiteralPath $installedExe).VersionInfo.ProductVersion
     $commit = (git rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0) { throw "Unable to resolve the installed Git commit." }
 
@@ -51,6 +52,7 @@ try {
         ProcessId = $processes[0].Id
         StartedAt = $processes[0].StartTime
         Executable = $processes[0].Path
+        InstalledVersion = $installedVersion
         SampleIntervalSeconds = $settings.SampleIntervalSeconds
         UploadIntervalMinutes = $settings.UploadIntervalMinutes
         CollectPageTitles = $settings.CollectPageTitles

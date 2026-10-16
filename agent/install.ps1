@@ -1,7 +1,8 @@
 param(
     [string]$ApiUrl,
     [string]$IngestSecret,
-    [string]$DeviceId
+    [string]$DeviceId,
+    [switch]$AllowDowngrade
 )
 
 $ErrorActionPreference = "Stop"
@@ -54,6 +55,11 @@ function Install-VerifiedFile([string]$Source, [string]$Destination) {
     }
 }
 
+function Get-AgentVersion([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { return $null }
+    return (Get-Item -LiteralPath $Path).VersionInfo.FileVersionRaw
+}
+
 # Re-installs keep the existing settings unless new values are passed.
 $existing = $null
 if (Test-Path -LiteralPath $configPath) {
@@ -77,7 +83,7 @@ if ($dotnetCommand) {
 } else {
     $portableDotnet = Join-Path $PSScriptRoot "..\.tools\dotnet\dotnet.exe"
     if (-not (Test-Path -LiteralPath $portableDotnet)) {
-        throw "The .NET 8 SDK is required to build the agent. Install it from https://dotnet.microsoft.com/download/dotnet/8.0"
+        throw "The .NET 10 SDK is required to build the agent. Install it from https://dotnet.microsoft.com/download/dotnet/10.0"
     }
     $dotnetPath = (Resolve-Path -LiteralPath $portableDotnet).Path
 }
@@ -85,11 +91,18 @@ if ($dotnetCommand) {
 & $dotnetPath publish $projectPath -c Release -r win-x64 --self-contained true -o $publishPath
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE." }
 
+$sourceExe = Join-Path $publishPath "ScreenTime.Agent.exe"
+$sourceVersion = Get-AgentVersion $sourceExe
+$existingVersion = Get-AgentVersion $installedExe
+if (-not $AllowDowngrade -and $existingVersion -and $sourceVersion -lt $existingVersion) {
+    throw "Refusing to replace Screen Time Agent $existingVersion with older version $sourceVersion. Pass -AllowDowngrade to roll back intentionally."
+}
+
 # The running agent locks its executable; stop it and wait for Windows to release the file.
 Stop-AgentProcess
 New-Item -ItemType Directory -Path $installPath -Force | Out-Null
 Wait-FileUnlocked $installedExe
-Install-VerifiedFile (Join-Path $publishPath "ScreenTime.Agent.exe") $installedExe
+Install-VerifiedFile $sourceExe $installedExe
 
 $config = [ordered]@{
     ApiUrl = $ApiUrl
@@ -119,4 +132,5 @@ $installedProcesses = @(Get-Process -Name "ScreenTime.Agent" -ErrorAction Silent
 if ($installedProcesses.Count -ne 1) {
     throw "Expected exactly one installed ScreenTime.Agent process; found $($installedProcesses.Count)."
 }
-Write-Host "Installed. The agent is running in the notification tray and will start at sign-in."
+$installedVersion = (Get-Item -LiteralPath $installedExe).VersionInfo.ProductVersion
+Write-Host "Installed Screen Time Agent $installedVersion. The agent is running in the notification tray and will start at sign-in."

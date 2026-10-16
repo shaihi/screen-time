@@ -18,7 +18,7 @@ if ($dotnetCommand) {
 } else {
     $portableDotnet = Join-Path $root "..\.tools\dotnet\dotnet.exe"
     if (-not (Test-Path -LiteralPath $portableDotnet)) {
-        throw "The .NET 8 SDK is required to package the agent."
+        throw "The .NET 10 SDK is required to package the agent."
     }
     $dotnetPath = (Resolve-Path -LiteralPath $portableDotnet).Path
 }

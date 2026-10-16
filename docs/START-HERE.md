@@ -16,7 +16,7 @@ Signing out closes games and documents. Unsaved work can be lost.
 - The child's **Windows 11 Pro** computer.
 - Your own **Administrator** account on that computer.
 - The child's own **Standard** account. They keep their own PIN.
-- This branch: `feat/windows-screen-time-enforcement`.
+- The current `main` branch.
 - Your existing Screen Time dashboard, with its database.
 - An authenticator app on your phone. It makes the six-digit codes for parent changes.
 
@@ -94,7 +94,7 @@ Success says **Installed control database migration 001**, or says it was alread
 
 ### 6. Deploy the branch
 
-In Vercel, deploy `feat/windows-screen-time-enforcement` with the new settings. A preview deployment is useful for testing. Use its exact HTTPS dashboard address when installing the Windows service; keep that deployment available afterward.
+In Vercel, deploy `main` with the new settings. A preview deployment is useful for testing. Use its exact HTTPS dashboard address when installing the Windows service; keep that deployment available afterward.
 
 The deployment's API must be reachable without a separate Vercel deployment-password or browser-login page. The Screen Time app still requires its own parent login, setup token, and device authentication. A protected preview that redirects the installer to a login page will not work.
 
@@ -104,12 +104,12 @@ Sign out of the dashboard and sign back in after setup. This gives you a new par
 
 If you received the ready-built `agent/artifacts/ScreenTime-Control-win-x64.zip` from this branch, copy that ZIP to the Windows computer and skip the build commands below. You do not need Git, Node, or the .NET SDK on that computer just to install the ZIP.
 
-A developer does this on Windows with the .NET 8 SDK. The finished package needs no SDK on the child's computer.
+A developer does this on Windows with the .NET 10 SDK. The finished package needs no SDK on the child's computer.
 
 From the repository root on Windows:
 
 ```powershell
-git switch feat/windows-screen-time-enforcement
+git switch main
 dotnet test agent\ScreenTime.Agent.Tests\ScreenTime.Agent.Tests.csproj
 dotnet test agent\ScreenTime.Control.Tests\ScreenTime.Control.Tests.csproj
 .\agent\package-control.ps1

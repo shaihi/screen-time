@@ -11,6 +11,7 @@ internal sealed class WindowsActivity
     private const uint DesktopSwitchDesktop = 0x0100;
     private const uint ProcessQueryLimitedInformation = 0x1000;
     private const int MaxCachedNames = 256;
+    private static readonly TimeSpan MediaSessionRequestTimeout = TimeSpan.FromSeconds(5);
     private GlobalSystemMediaTransportControlsSessionManager? _mediaManager;
     private PackageManager? _packageManager;
     private readonly Dictionary<(uint ProcessId, string ProcessName), string?> _processNames = new();
@@ -33,7 +34,10 @@ internal sealed class WindowsActivity
     {
         try
         {
-            _mediaManager ??= await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+            using var timeout = new CancellationTokenSource(MediaSessionRequestTimeout);
+            _mediaManager ??= await GlobalSystemMediaTransportControlsSessionManager
+                .RequestAsync()
+                .AsTask(timeout.Token);
             var playing = _mediaManager.GetSessions().FirstOrDefault(session =>
                 session.GetPlaybackInfo().PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing);
             return playing is null ? null : MediaAppName(playing.SourceAppUserModelId);
