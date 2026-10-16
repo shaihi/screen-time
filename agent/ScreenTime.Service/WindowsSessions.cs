@@ -98,6 +98,78 @@ internal static class WindowsSessions
         }
         finally { if (env != IntPtr.Zero) DestroyEnvironmentBlock(env); CloseHandle(token); }
     }
+    public static void CloseUserApps(string sid, int sessionId)
+    {
+        var processes = OwnedProcesses(sid, sessionId);
+        foreach (var process in processes)
+        {
+            try { process.CloseMainWindow(); }
+            catch (Exception e) when (e is InvalidOperationException or Win32Exception) { }
+        }
+        var gracefulDeadline = Stopwatch.StartNew();
+        while (gracefulDeadline.Elapsed < TimeSpan.FromSeconds(2) && processes.Any(IsRunning))
+            Thread.Sleep(100);
+        foreach (var process in processes)
+        {
+            try
+            {
+                if (!process.HasExited)
+                    process.Kill(entireProcessTree: false);
+            }
+            catch (Exception e) when (e is InvalidOperationException or Win32Exception) { }
+            finally { process.Dispose(); }
+        }
+        // Catch apps launched while graceful close dialogs were visible.
+        foreach (var process in OwnedProcesses(sid, sessionId))
+        {
+            try
+            {
+                if (!process.HasExited)
+                    process.Kill(entireProcessTree: false);
+            }
+            catch (Exception e) when (e is InvalidOperationException or Win32Exception) { }
+            finally { process.Dispose(); }
+        }
+    }
+    private static bool IsRunning(Process process)
+    {
+        try { return !process.HasExited; }
+        catch (InvalidOperationException) { return false; }
+    }
+    private static List<Process> OwnedProcesses(string sid, int sessionId)
+    {
+        var result = new List<Process>();
+        foreach (var process in Process.GetProcesses())
+        {
+            try
+            {
+                if (process.SessionId != sessionId)
+                {
+                    process.Dispose();
+                    continue;
+                }
+                if (!OpenProcessToken(process.Handle, 0x0008, out var token))
+                {
+                    process.Dispose();
+                    continue;
+                }
+                try
+                {
+                    using var identity = new WindowsIdentity(token);
+                    if (identity.User?.Value == sid)
+                        result.Add(process);
+                    else
+                        process.Dispose();
+                }
+                finally { CloseHandle(token); }
+            }
+            catch (Exception e) when (e is InvalidOperationException or Win32Exception)
+            {
+                process.Dispose();
+            }
+        }
+        return result;
+    }
     public static bool IsTrustedClient(uint processId, int sessionId)
     {
         using var p = Process.GetProcessById(checked((int)processId));
@@ -123,6 +195,7 @@ internal static class WindowsSessions
     [DllImport("wtsapi32")] private static extern void WTSFreeMemory(IntPtr memory);
     [DllImport("wtsapi32", SetLastError = true)] public static extern bool WTSQueryUserToken(int session, out IntPtr token);
     [DllImport("wtsapi32", SetLastError = true)] public static extern bool WTSLogoffSession(IntPtr server, int id, bool wait);
+    [DllImport("advapi32", SetLastError = true)] private static extern bool OpenProcessToken(IntPtr process, uint desiredAccess, out IntPtr token);
     [DllImport("kernel32", SetLastError = true)] public static extern bool CloseHandle(IntPtr handle);
     [DllImport("userenv", SetLastError = true)] private static extern bool CreateEnvironmentBlock(out IntPtr environment, IntPtr token, bool inherit);
     [DllImport("userenv")] private static extern bool DestroyEnvironmentBlock(IntPtr environment);

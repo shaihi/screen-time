@@ -6,7 +6,7 @@ Think of Screen Time as a timer with a gate:
 
 - While time is left, the gate is open. All apps work.
 - Before time runs out, the computer says, “Save your work.”
-- When time is gone, the gate closes. Windows signs the child out.
+- When time is gone, a 30-second save countdown appears. Then Windows closes all of the child's apps, signs the child out, and keeps the gate closed.
 - You can add more time. The gate opens when all the rules allow it.
 
 Signing out closes games and documents. Unsaved work can be lost.
@@ -169,7 +169,7 @@ Start-Service -Name ScreenTime.Control
 
 6. Sign in as the child again. In the dashboard, enter a small daily limit. The service counts usage already observed today, so choose a limit a few minutes above the reported total.
 7. Set **Blocking → Enforce rules — sign out at cutoff**. Check the save/recovery box and save.
-8. Wait for the computer to confirm the new rules. Use an app until the test limit is reached. Windows should sign the child out. Their PIN should not let them back in while time is still blocked.
+8. Wait for the computer to confirm the new rules. Use an app until the test limit is reached. A 30-second countdown should appear. Leave an unsaved test document open: at zero, its save dialog must not prevent forced app closure. Windows should sign the child out, and their PIN should not let them back in while time is still blocked.
 9. The parent account must still sign in. From the dashboard, add **+15 min today**. If the schedule also blocks access, use temporary access and explicitly select the allowed-hours override too.
 10. The child should be able to sign in after the computer confirms the grant.
 
@@ -184,6 +184,7 @@ Before relying on it, also test a reboot, internet disconnected, PIN/password si
 - Set **Same hours every day** if you want a bedtime. The end must be later than the start. Use the API for a custom weekly or overnight schedule.
 - **+15 / +30 / +60 min today** adds time for that day. It does not cancel bedtime.
 - **Allow temporarily** can bypass the budget. Its separate checkbox also bypasses allowed hours when you choose it.
+- **Shutdown** starts the same 30-second save countdown immediately, closes all child-owned apps, and keeps access blocked until the parent clicks **Restore access**.
 - **Watch only** turns blocking off after the computer receives and applies the change.
 - **Apply these changes** can give one or five minutes to save work before new rules start. Existing rules keep working until then. This does not add grace to the normal daily cutoff.
 - If the PC is offline, new changes wait. The saved rules on the PC keep working.

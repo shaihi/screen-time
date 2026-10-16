@@ -143,20 +143,23 @@ internal sealed class ControlWorker : IDisposable
         // Evaluating a regressed timezone/day reuses the high-water usage day, never a new allowance.
         var used = state.Ledger.Used(policyDay);
         var desired = PolicyEvaluator.WarnPending(PolicyEvaluator.Evaluate(policy, now, used), state.Policies.Pending, now);
+        var transition = RestrictionCountdown.Evaluate(desired, state.RestrictionDesired, state.RestrictionCountdownUntilUtc, now);
         state.RestrictionDesired = desired.Blocked;
+        state.RestrictionCountdownUntilUtc = transition.CountdownUntilUtc;
         // Write journal and consumed seconds before normal account access changes.
         if (!PersistForEnforcement(now, policy, priorAppliedRevision))
             return;
-        if (policy.Mode == "managed" && restriction.IsChildAdministrator())
+        if ((policy.Mode == "managed" || policy.Shutdown) && restriction.IsChildAdministrator())
             throw new InvalidDataException("Managed controls require a standard child account; sign out old administrator sessions");
-        restriction.SetBlocked(desired.Blocked);
-        state.AppliedRevision = policy.Revision;
+        restriction.SetBlocked(transition.EnforceBlocked);
+        if (!desired.Blocked || transition.EnforceBlocked)
+            state.AppliedRevision = policy.Revision;
         error = untrustedClock ? "Local clock changed unexpectedly; trusted time is held until authenticated sync" : null;
-        decision = untrustedClock ? desired with
+        decision = untrustedClock ? transition.Decision with
         {
             State = "error",
             Reason = error!
-        } : desired;
+        } : transition.Decision;
         foreach (var session in active)
         {
             if (!desired.Blocked && !pipe.Read(session.Id).Healthy && (!sensorLaunches.TryGetValue(session.Id, out var last) || now - last > TimeSpan.FromSeconds(30)))
@@ -183,7 +186,7 @@ internal sealed class ControlWorker : IDisposable
             // A full disk must not become a way to stop the timer. No successful policy application is
             // acknowledged when persistence fails. The protected enrollment remains the recovery authority.
             state.AppliedRevision = priorAppliedRevision;
-            var blocked = policy.Mode == "managed";
+            var blocked = policy.Mode == "managed" || policy.Shutdown;
             if (blocked)
             {
                 state.RestrictionDesired = true;
@@ -224,7 +227,7 @@ internal sealed class ControlWorker : IDisposable
                         remainingSeconds = decision.RemainingSeconds,
                         policyDay,
                         sensorHealthy,
-                        agentVersion = "2.0.0",
+                        agentVersion = "2.1.0",
                         error = (error ?? syncError) is { } reportError ? Bound(reportError) : null
                     }, ControlJson.Options);
                 }

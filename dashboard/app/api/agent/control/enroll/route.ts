@@ -53,6 +53,7 @@ export async function POST(request: Request) {
       issuedAtUtc: now,
       effectiveAtUtc: now,
       mode: "monitor",
+      shutdown: false,
       timeZone: process.env.DISPLAY_TIME_ZONE || "Asia/Jerusalem",
       dailyLimitSeconds: 7200,
       budgetBasis: "actual_use",

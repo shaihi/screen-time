@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 
@@ -125,8 +126,14 @@ internal sealed class WindowsRestriction(ServiceConfig config)
         if (blocked)
         {
             foreach (var session in WindowsSessions.ForChild(config.WindowsSid))
+            {
+                WindowsSessions.CloseUserApps(config.WindowsSid, session.Id);
                 if (!WindowsSessions.WTSLogoffSession(IntPtr.Zero, session.Id, false))
                     throw new Win32Exception(Marshal.GetLastWin32Error(), "Child session sign-out failed");
+            }
+            var wait = Stopwatch.StartNew();
+            while (wait.Elapsed < TimeSpan.FromSeconds(5) && WindowsSessions.ForChild(config.WindowsSid).Count != 0)
+                Thread.Sleep(100);
             if (WindowsSessions.ForChild(config.WindowsSid).Count != 0)
                 throw new InvalidDataException("A child session remains; cutoff is not verified");
             VerifyRights(config.RestrictionGroupSid);

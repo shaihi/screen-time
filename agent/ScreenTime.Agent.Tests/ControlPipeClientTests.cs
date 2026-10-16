@@ -45,5 +45,12 @@ public class ControlPipeClientTests
     public void Rejects_invalid_status(string json) => Assert.Null(ControlPipeClient.ParseStatus(json));
 
     [Fact]
+    public void Accepts_only_bounded_shutdown_countdown()
+    {
+        Assert.Equal(30, ControlPipeClient.ParseStatus("{\"state\":\"countdown\",\"remainingSeconds\":0,\"reason\":\"Save now\",\"warningSeconds\":30}")?.WarningSeconds);
+        Assert.Null(ControlPipeClient.ParseStatus("{\"state\":\"countdown\",\"remainingSeconds\":0,\"reason\":\"Save now\",\"warningSeconds\":31}"));
+    }
+
+    [Fact]
     public void Rejects_oversized_status() => Assert.Null(ControlPipeClient.ParseStatus(new string('x', 4097)));
 }

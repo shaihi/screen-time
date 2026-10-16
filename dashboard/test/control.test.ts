@@ -13,6 +13,7 @@ import {
   validatePolicyEdit,
   validateGrant,
   validateOverride,
+  validateShutdown,
   validateSync,
   verifyDeviceSignature,
   totpCode,
@@ -26,6 +27,15 @@ const key = Buffer.alloc(32, 7).toString("base64");
 const privateKey = generateKeyPairSync("rsa", { modulusLength: 2048 })
   .privateKey.export({ type: "pkcs8", format: "pem" })
   .toString();
+test("shutdown action requires an exact revision and boolean state", () => {
+  assert.deepEqual(validateShutdown({ expectedRevision: 4, shutdown: true }), {
+    expectedRevision: 4,
+    shutdown: true,
+  });
+  assert.throws(() => validateShutdown({ expectedRevision: 4, shutdown: "yes" }));
+  assert.throws(() => validateShutdown({ expectedRevision: 0, shutdown: true }));
+  assert.throws(() => validateShutdown({ expectedRevision: 4, shutdown: true, command: "anything" }));
+});
 test("device credentials are authenticated, target-bound ciphertext", () => {
   const encrypted = encryptCredential("secret", "pc", key);
   assert.equal(decryptCredential(encrypted, "pc", key), "secret");
@@ -184,7 +194,7 @@ test("sync status rejects impossible counters and unbounded errors", () => {
     remainingSeconds: null,
     policyDay: "2026-10-15",
     sensorHealthy: true,
-    agentVersion: "2.0.0",
+    agentVersion: "2.1.0",
     error: null,
   };
   assert.deepEqual(validateSync(valid), valid);

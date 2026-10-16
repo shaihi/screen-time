@@ -51,9 +51,11 @@ h1 { font: 500 clamp(70px, 10vw, 142px)/.82 var(--font-display), sans-serif; let
 .range-tabs { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: #111512aa; }.range-tabs a { color: var(--muted); text-decoration: none; font-size: 12px; font-weight: 700; padding: 7px 16px; border-radius: 8px; }.range-tabs a:hover { color: var(--ink); }.range-tabs a.active { background: var(--lime); color: #10140f; }
 .range-navigation { display: inline-flex; align-items: center; gap: 10px; margin-left: 10px; }.range-navigation button { border: 1px solid var(--line); border-radius: 8px; background: #111512aa; color: var(--ink); padding: 7px 10px; font: 700 11px var(--font-body), sans-serif; cursor: pointer; }.range-navigation button:hover { border-color: #c8ff5577; color: var(--lime); }.range-navigation button:disabled { opacity: .5; cursor: wait; }.range-navigation span { color: var(--muted); font-size: 11px; font-weight: 700; }
 .board-toolbar { scroll-margin-top: 12px; display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 10px; }
-.text-button, .primary-button { border-radius: 9px; padding: 8px 14px; font: 700 12px var(--font-body), sans-serif; cursor: pointer; min-height: 36px; }
+.text-button, .primary-button, .danger-button { border-radius: 9px; padding: 8px 14px; font: 700 12px var(--font-body), sans-serif; cursor: pointer; min-height: 36px; }
 .text-button { border: 1px solid var(--line); background: #111512; color: var(--muted); }.text-button:hover { color: var(--ink); }
 .primary-button { border: 0; background: var(--lime); color: #10140f; }
+.danger-button { border: 1px solid #b04c3d; background: #8f3025; color: #fff; }
+.danger-button:hover { background: #aa3a2d; }
 .board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
 .board-item { min-width: 0; }.board-item.wide { grid-column: 1 / -1; }
 .board-item .panel-heading { gap: 12px; flex-wrap: wrap; }
@@ -134,6 +136,10 @@ footer { text-align: center; color: #5b645e; font-size: 9px; letter-spacing: .05
 .control-panel .control-check { flex-direction: row; align-items: start; line-height: 1.6; margin: 8px 0; }
 .control-panel .control-check input { width: 17px; height: 17px; flex: 0 0 auto; margin-top: 2px; accent-color: var(--lime); }
 .control-grants { margin-top: 18px; }
+.control-shutdown { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 18px; padding: 16px; border: 1px solid #71382f; border-radius: 11px; background: #281815; }
+.control-shutdown.active { border-color: #a64836; background: #3b1b17; }
+.control-shutdown strong { font-size: 13px; }
+.control-shutdown p { margin: 5px 0 0; color: #d4b4ad; font-size: 11px; line-height: 1.5; }
 .control-enroll { padding-top: 15px; margin-top: 18px; border-top: 1px solid var(--line); }
 .control-enroll summary { cursor: pointer; color: #c7cec8; font-size: 12px; }
 .control-enroll > form { display: grid; gap: 12px; max-width: 600px; margin-top: 15px; }
@@ -142,4 +148,5 @@ footer { text-align: center; color: #5b645e; font-size: 9px; letter-spacing: .05
   .control-fields { grid-template-columns: 1fr; }
   .control-stat-grid { grid-template-columns: 1fr; }
   .control-device { padding: 15px; }
+  .control-shutdown { align-items: stretch; flex-direction: column; }
 }

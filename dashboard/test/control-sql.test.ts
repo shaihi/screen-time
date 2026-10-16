@@ -19,6 +19,7 @@ function initialPolicy() {
     issuedAtUtc: "2026-10-15T12:00:00Z",
     effectiveAtUtc: "2026-10-15T12:00:00Z",
     mode: "monitor",
+    shutdown: false,
     timeZone: "UTC",
     dailyLimitSeconds: 7200,
     budgetBasis: "actual_use",

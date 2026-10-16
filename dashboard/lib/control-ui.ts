@@ -34,6 +34,7 @@ export function displayControlState(
   if (!status || !status.lastSeenAt) return "Waiting for first contact";
   if (now - Date.parse(status.lastSeenAt) > 120_000) return `Offline · last reported ${status.state}`;
   if (status.state === "error") return "Needs attention";
+  if (status.state === "countdown") return "Closing apps in 30 seconds";
   if (status.appliedRevision !== revision) return "Waiting for computer";
   return ({ blocked: "Blocked · confirmed", allowed: "Allowed · confirmed", warning: "Time nearly up", monitoring: "Monitoring · no blocking" })[status.state] ?? "Unknown state";
 }

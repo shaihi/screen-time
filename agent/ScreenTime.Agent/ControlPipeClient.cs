@@ -89,11 +89,15 @@ internal sealed class ControlPipeClient(string pipeName = "ScreenTime.Control.v1
         try
         {
             var status = JsonSerializer.Deserialize<ControlStatus>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            if (status is null || status.State is not ("allowed" or "warning" or "blocked" or "monitoring" or "error") ||
+            if (status is null || status.State is not ("allowed" or "warning" or "countdown" or "blocked" or "monitoring" or "error") ||
                 status.Reason is null || status.Reason.Length > 1000 || status.RemainingSeconds < 0 ||
-                status.WarningSeconds is not (null or 300 or 60)) return null;
+                !ValidWarning(status)) return null;
             return status;
         }
         catch (JsonException) { return null; }
     }
+
+    private static bool ValidWarning(ControlStatus status) => status.State == "countdown"
+        ? status.WarningSeconds is >= 0 and <= 30
+        : status.WarningSeconds is null or 300 or 60;
 }
