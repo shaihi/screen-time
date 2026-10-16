@@ -8,6 +8,8 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/api/auth/login") ||
     request.nextUrl.pathname.startsWith("/api/ingest") ||
     request.nextUrl.pathname.startsWith("/api/agent/") ||
+    // Control handlers independently verify the parent cookie and return JSON 401s.
+    request.nextUrl.pathname.startsWith("/api/control/") ||
     request.nextUrl.pathname.startsWith("/api/health")
   ) {
     return NextResponse.next();

@@ -9,11 +9,27 @@ internal sealed record AgentConfig(
     int IdleThresholdSeconds = 120,
     int SampleIntervalSeconds = 2,
     int UploadIntervalMinutes = 1,
-    bool CollectPageTitles = true)
+    bool CollectPageTitles = true,
+    bool TelemetryEnabled = true,
+    bool ManagedInstallation = false)
 {
-    public static AgentConfig Load()
+    public static AgentConfig Load(bool managedInstallation = false)
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+        // The managed tray never reads ProgramData/service.json. The device credential belongs to SYSTEM.
+        // An existing per-child telemetry configuration can continue reporting to the old ingest endpoint.
+        var path = managedInstallation
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ScreenTimeAgent", "appsettings.json")
+            : Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+        if (managedInstallation)
+        {
+            try { return LoadFromPath(path) with { ManagedInstallation = true }; }
+            catch { return new AgentConfig("", "", "managed", CollectPageTitles: false, TelemetryEnabled: false, ManagedInstallation: true); }
+        }
+        return LoadFromPath(path);
+    }
+
+    private static AgentConfig LoadFromPath(string path)
+    {
         if (!File.Exists(path)) throw new InvalidOperationException($"Configuration is missing: {path}");
         var config = JsonSerializer.Deserialize<AgentConfig>(File.ReadAllText(path), JsonOptions.Default)
             ?? throw new InvalidOperationException("Configuration is invalid.");

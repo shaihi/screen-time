@@ -12,6 +12,7 @@ import { RangeShell } from "@/app/components/range-shell";
 import { SessionsPanel } from "@/app/components/sessions-panel";
 import { Timeline, TimelineLegend } from "@/app/components/timeline";
 import { RemindersPanel } from "@/app/components/reminders-panel";
+import { ControlPanel } from "@/app/components/control-panel";
 import { formatLastSeen } from "@/lib/format";
 import { getHouseholdById } from "@/lib/households";
 import { parseMonthOffset, parseRange, parseWeekOffset, rangeLabels } from "@/lib/range";
@@ -56,6 +57,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
     : undefined;
 
   const panels: BoardPanel[] = [
+    { id: "controls", title: "Screen-time controls", wide: true, content: <ControlPanel defaultDeviceId={summary?.deviceId} /> },
     { id: "metrics", title: "Real usage", wide: true, plain: true, content: <MetricsPanel summary={summary} /> },
     {
       id: "timeline",

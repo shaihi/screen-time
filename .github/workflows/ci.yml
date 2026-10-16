@@ -31,4 +31,19 @@ jobs:
         with:
           dotnet-version: 8.0.x
       - run: dotnet test agent/ScreenTime.Agent.Tests/ScreenTime.Agent.Tests.csproj
+      - run: dotnet test agent/ScreenTime.Control.Tests/ScreenTime.Control.Tests.csproj
       - run: dotnet build agent/ScreenTime.Agent/ScreenTime.Agent.csproj -c Release
+      - run: dotnet build agent/ScreenTime.Service/ScreenTime.Service.csproj -c Release
+      - name: Validate control installer syntax
+        shell: pwsh
+        run: |
+          $scripts = 'install-control', 'recover-control', 'uninstall-control', 'package-control', 'test-control-install'
+          foreach ($script in $scripts) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile("$PWD/agent/$script.ps1", [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count) { throw ($errors | Out-String) }
+          }
+      - name: Build complete control package
+        shell: pwsh
+        run: .\agent\package-control.ps1

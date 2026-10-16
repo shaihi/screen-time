@@ -30,6 +30,8 @@ Use this only on a computer you own or administer, with the knowledge of the per
 - `dashboard` — Next.js dashboard and authenticated ingest API
 - `.env.example` — Vercel/database configuration template
 
+The optional Windows 11 Pro control service is implemented on `feat/windows-screen-time-enforcement`. Follow [Start here: simple setup and rescue](docs/START-HERE.md) to prepare its dashboard, package, and parent-installed Windows service. Installation starts with blocking off. Managed mode requires a standard child account and signs the child out when the rules run out; it closes running apps. The service has independent offline recovery and keeps saved rules when the network is unavailable. See the [architecture](docs/CONTROL-ARCHITECTURE.md) and [wire protocol](docs/CONTROL-PROTOCOL.md) for technical details. Windows sign-in enforcement still requires the real-PC acceptance tests in the setup guide.
+
 ## Deploy the dashboard
 
 1. Import this repository into Vercel and set the **Root Directory** to `dashboard`.
